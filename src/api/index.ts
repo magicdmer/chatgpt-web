@@ -116,13 +116,6 @@ export function fetchUpdateUserInfo<T = any>(name: string, avatar: string, descr
   })
 }
 
-export function fetchUpdateUserChatModel<T = any>(chatModel: CHATMODEL) {
-  return post<T>({
-    url: '/user-chat-model',
-    data: { chatModel },
-  })
-}
-
 export function fetchGetUsers<T = any>(page: number, size: number) {
   return get<T>({
     url: '/users',
@@ -150,10 +143,10 @@ export function fetchGetChatRooms<T = any>() {
   })
 }
 
-export function fetchCreateChatRoom<T = any>(title: string, roomId: number) {
+export function fetchCreateChatRoom<T = any>(title: string, model: CHATMODEL, roomId: number) {
   return post<T>({
     url: '/room-create',
-    data: { title, roomId },
+    data: { title, model, roomId },
   })
 }
 
@@ -175,6 +168,13 @@ export function fetchUpdateChatRoomUsingContext<T = any>(using: boolean, roomId:
   return post<T>({
     url: '/room-context',
     data: { using, roomId },
+  })
+}
+
+export function fetchUpdateChatRoomChatModel<T = any>(model: CHATMODEL, roomId: number) {
+  return post<T>({
+    url: '/room-chatmodel',
+    data: { model, roomId },
   })
 }
 

@@ -48,12 +48,6 @@ onMounted(() => {
     <div class="p-4 space-y-5 min-h-[200px]">
       <div class="space-y-6">
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.apiBaseUrl') }}</span>
-          <div class="flex-1">
-            <NInput :value="config.apiBaseUrl" placeholder="https://api.openai.com, Only used by ChatGPTAPI" @input="(val) => { config.apiBaseUrl = val }" />
-          </div>
-        </div>
-        <div class="flex items-center space-x-4">
           <span class="flex-shrink-0 w-[100px]">{{ $t('setting.reverseProxy') }}</span>
           <div class="flex-1">
             <NInput :value="config.reverseProxy" placeholder="Only used by ChatGPTUnofficialProxyAPI" @input="(val) => { config.reverseProxy = val }" />

@@ -1,5 +1,4 @@
 import type { UserRole } from '@/components/common/Setting/model'
-import { UserConfig } from '@/components/common/Setting/model'
 import { ss } from '@/utils/storage'
 
 const LOCAL_NAME = 'userStorage'
@@ -9,7 +8,6 @@ export interface UserInfo {
   name: string
   description: string
   root: boolean
-  config: UserConfig
   roles: UserRole[]
 }
 
@@ -24,7 +22,6 @@ export function defaultSetting(): UserState {
       name: '',
       description: '',
       root: false,
-      config: { chatModel: 'gpt-3.5-turbo' },
       roles: [],
     },
   }
@@ -32,10 +29,6 @@ export function defaultSetting(): UserState {
 
 export function getLocalState(): UserState {
   const localSetting: UserState | undefined = ss.get(LOCAL_NAME)
-  if (localSetting != null && localSetting.userInfo != null && localSetting.userInfo.config == null) {
-    localSetting.userInfo.config = new UserConfig()
-    localSetting.userInfo.config.chatModel = 'gpt-3.5-turbo'
-  }
   return { ...defaultSetting(), ...localSetting }
 }
 

@@ -34,7 +34,6 @@ export class UserInfo {
   avatar?: string
   description?: string
   updateTime?: string
-  config?: UserConfig
   roles?: UserRole[]
   constructor(email: string, password: string) {
     this.name = email
@@ -48,24 +47,18 @@ export class UserInfo {
   }
 }
 
-export class UserConfig {
-  chatModel: CHATMODEL
-}
-
 // https://platform.openai.com/docs/models/overview
 // 除此之外，gpt-4-0314、gpt-4-32k-0314、gpt-3.5-turbo-0301 模型将在 9 月 13 日被弃用。
-export type CHATMODEL = 'gpt-3.5-turbo' | 'gpt-3.5-turbo-0301' | 'gpt-3.5-turbo-0613' | 'gpt-3.5-turbo-16k' | 'gpt-3.5-turbo-16k-0613' | 'gpt-4' | 'gpt-4-0314' | 'gpt-4-32k' | 'gpt-4-32k-0314' | 'gpt-4-0613' | 'gpt-4-32k-0613' | 'text-davinci-002-render-sha-mobile' | 'text-embedding-ada-002' | 'gpt-4-mobile' | 'gpt-4-browsing'
+export type CHATMODEL = 'gpt-3.5-turbo' | 'gpt-3.5-turbo-0613' | 'gpt-3.5-turbo-16k' | 'gpt-3.5-turbo-16k-0613' | 'gpt-4' | 'gpt-4-32k' | 'gpt-4-0613' | 'gpt-4-32k-0613' | 'text-embedding-ada-002'
 
 export const CHATMODELS: CHATMODEL[] = [
-  'gpt-3.5-turbo', 'gpt-3.5-turbo-0301', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo-16k-0613', 'gpt-4', 'gpt-4-0314', 'gpt-4-32k', 'gpt-4-32k-0314', 'gpt-4-0613', 'gpt-4-32k-0613', 'text-davinci-002-render-sha-mobile', 'text-embedding-ada-002', 'gpt-4-mobile', 'gpt-4-browsing',
+  'gpt-3.5-turbo', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo-16k-0613', 'gpt-4', 'gpt-4-32k', 'gpt-4-0613', 'gpt-4-32k-0613', 'text-embedding-ada-002',
 ]
 
 export const chatModelOptions = [
-  'gpt-3.5-turbo', 'gpt-3.5-turbo-0301', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo-16k-0613', 'gpt-4', 'gpt-4-0314', 'gpt-4-32k', 'gpt-4-32k-0314', 'gpt-4-0613', 'gpt-4-32k-0613', 'text-davinci-002-render-sha-mobile', 'text-embedding-ada-002', 'gpt-4-mobile', 'gpt-4-browsing',
+  'gpt-3.5-turbo', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo-16k-0613', 'gpt-4', 'gpt-4-32k', 'gpt-4-0613', 'gpt-4-32k-0613', 'text-embedding-ada-002',
 ].map((model: string) => {
-  let label = model
-  if (model === 'text-davinci-002-render-sha-mobile')
-    label = 'gpt-3.5-mobile'
+  const label = model
   return {
     label,
     key: model,
@@ -91,7 +84,7 @@ export class ChatRoom {
     this.roomId = roomId
     this.usingContext = true
     this.accountId = null
-    this.chatModel = null
+    this.chatModel = 'gpt-3.5-turbo'
   }
 }
 
@@ -229,13 +222,16 @@ export enum TextAudioType {
 export class KeyConfig {
   _id: ObjectId
   key: string
+  apiBaseUrl: string
   keyModel: APIMODEL
   chatModels: CHATMODEL[]
   userRoles: UserRole[]
   status: Status
   remark: string
-  constructor(key: string, keyModel: APIMODEL, chatModels: CHATMODEL[], userRoles: UserRole[], remark: string) {
+  constructor(key: string, apiBaseUrl: string, keyModel: APIMODEL, chatModels: CHATMODEL[],
+    userRoles: UserRole[], remark: string) {
     this.key = key
+    this.apiBaseUrl = apiBaseUrl
     this.keyModel = keyModel
     this.chatModels = chatModels
     this.userRoles = userRoles

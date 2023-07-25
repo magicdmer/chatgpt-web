@@ -8,7 +8,7 @@ import type { ChatMessage } from './chatgpt'
 import { abortChatProcess, chatConfig, chatReplyProcess, containsSensitiveWords, initAuditService } from './chatgpt'
 import { auth, getUserId } from './middleware/auth'
 import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig } from './storage/config'
-import type { AuditConfig, CHATMODEL, ChatInfo, ChatOptions, Config, KeyConfig, MailConfig, SiteConfig, UserConfig, UserInfo } from './storage/model'
+import type { AuditConfig, CHATMODEL, ChatInfo, ChatOptions, Config, KeyConfig, MailConfig, SiteConfig, UserInfo } from './storage/model'
 import { Status, UsageResponse, UserRole, chatModelOptions } from './storage/model'
 import {
   clearChat,
@@ -36,7 +36,6 @@ import {
   updateRoomPrompt,
   updateRoomUsingContext,
   updateUser,
-  updateUserChatModel,
   updateUserInfo,
   updateUserPassword,
   updateUserStatus,
@@ -69,15 +68,18 @@ router.get('/chatrooms', auth, async (req, res) => {
     const userId = req.headers.userId as string
     const rooms = await getChatRooms(userId)
     const result = []
+
     rooms.forEach((r) => {
-      result.push({
+      const item = {
         uuid: r.roomId,
         title: r.title,
         isEdit: false,
         prompt: r.prompt,
         usingContext: r.usingContext === undefined ? true : r.usingContext,
-        chatModel: r.chatModel,
-      })
+        chatModel: (r.chatModel === undefined || r.chatModel === null) ? 'gpt-3.5-turbo' : r.chatModel,
+      }
+      result.push(item)
+      console.error(`roomid:${item.uuid}, title:${item.title}, model:${item.chatModel}`)
     })
     res.send({ status: 'Success', message: null, data: result })
   }
@@ -132,12 +134,12 @@ router.post('/room-prompt', auth, async (req, res) => {
 router.post('/room-chatmodel', auth, async (req, res) => {
   try {
     const userId = req.headers.userId as string
-    const { chatModel, roomId } = req.body as { chatModel: CHATMODEL; roomId: number }
-    const success = await updateRoomChatModel(userId, roomId, chatModel)
+    const { model, roomId } = req.body as { model: CHATMODEL; roomId: number }
+    const success = await updateRoomChatModel(userId, roomId, model)
     if (success)
-      res.send({ status: 'Success', message: 'Saved successfully', data: null })
+      res.send({ status: 'Success', message: `Saved successfully, ${roomId}, chatModel: ${model}`, data: null })
     else
-      res.send({ status: 'Fail', message: 'Saved Failed', data: null })
+      res.send({ status: 'Fail', message: `Saved Failed, roomid: ${roomId}, chatModel: ${model}`, data: null })
   }
   catch (error) {
     console.error(error)
@@ -419,8 +421,8 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
         result.data.detail = {}
       result.data.detail.usage = new UsageResponse()
       // 因为 token 本身不计算, 所以这里默认以 gpt 3.5 的算做一个伪统计
-      result.data.detail.usage.prompt_tokens = textTokens(prompt, 'gpt-3.5-turbo-0613')
-      result.data.detail.usage.completion_tokens = textTokens(result.data.text, 'gpt-3.5-turbo-0613')
+      result.data.detail.usage.prompt_tokens = textTokens(prompt, 'gpt-3.5-turbo')
+      result.data.detail.usage.completion_tokens = textTokens(result.data.text, 'gpt-3.5-turbo')
       result.data.detail.usage.total_tokens = result.data.detail.usage.prompt_tokens + result.data.detail.usage.completion_tokens
       result.data.detail.usage.estimated = true
     }
@@ -575,7 +577,7 @@ router.post('/session', async (req, res) => {
       key: string
       value: string
     }[] = []
-    let userInfo: { name: string; description: string; avatar: string; userId: string; root: boolean; roles: UserRole[]; config: UserConfig }
+    let userInfo: { name: string; description: string; avatar: string; userId: string; root: boolean; roles: UserRole[] }
     if (userId != null) {
       const user = await getUserById(userId)
       userInfo = {
@@ -585,7 +587,6 @@ router.post('/session', async (req, res) => {
         userId: user._id.toString(),
         root: user.roles.includes(UserRole.Admin),
         roles: user.roles,
-        config: user.config,
       }
 
       const keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles))
@@ -593,7 +594,7 @@ router.post('/session', async (req, res) => {
       const count: { key: string; count: number }[] = []
       chatModelOptions.forEach((chatModel) => {
         keys.forEach((key) => {
-          if (key.chatModels.includes(chatModel.value)) {
+          if (key.chatModels.includes(chatModel.value as CHATMODEL)) {
             if (count.filter(d => d.key === chatModel.value).length <= 0) {
               count.push({ key: chatModel.value, count: 1 })
             }
@@ -657,7 +658,6 @@ router.post('/user-login', authLimiter, async (req, res) => {
       description: user.description,
       userId: user._id,
       root: user.roles.includes(UserRole.Admin),
-      config: user.config,
     }, config.siteConfig.loginSalt.trim())
     res.send({ status: 'Success', message: '登录成功 | Login successfully', data: { token } })
   }
@@ -712,22 +712,6 @@ router.post('/user-info', auth, async (req, res) => {
     if (user == null || user.status !== Status.Normal)
       throw new Error('用户不存在 | User does not exist.')
     await updateUserInfo(userId, { name, avatar, description } as UserInfo)
-    res.send({ status: 'Success', message: '更新成功 | Update successfully' })
-  }
-  catch (error) {
-    res.send({ status: 'Fail', message: error.message, data: null })
-  }
-})
-
-router.post('/user-chat-model', auth, async (req, res) => {
-  try {
-    const { chatModel } = req.body as { chatModel: CHATMODEL }
-    const userId = req.headers.userId.toString()
-
-    const user = await getUserById(userId)
-    if (user == null || user.status !== Status.Normal)
-      throw new Error('用户不存在 | User does not exist.')
-    await updateUserChatModel(userId, chatModel)
     res.send({ status: 'Success', message: '更新成功 | Update successfully' })
   }
   catch (error) {

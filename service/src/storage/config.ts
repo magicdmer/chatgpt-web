@@ -143,10 +143,10 @@ export async function getApiKeys() {
   if (result.keys.length <= 0) {
     const config = await getCacheConfig()
     if (config.apiModel === 'ChatGPTAPI')
-      result.keys.push(await upsertKey(new KeyConfig(config.apiKey, 'ChatGPTAPI', [], [], '')))
+      result.keys.push(await upsertKey(new KeyConfig(config.apiKey, '', 'ChatGPTAPI', [], [], '')))
 
     if (config.apiModel === 'ChatGPTUnofficialProxyAPI')
-      result.keys.push(await upsertKey(new KeyConfig(config.accessToken, 'ChatGPTUnofficialProxyAPI', [], [], '')))
+      result.keys.push(await upsertKey(new KeyConfig(config.accessToken, '', 'ChatGPTUnofficialProxyAPI', [], [], '')))
 
     result.total++
   }

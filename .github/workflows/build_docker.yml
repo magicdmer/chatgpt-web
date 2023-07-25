@@ -2,7 +2,7 @@ name: build_docker
 
 on:
   push:
-    branches: [main]
+    branches: [custom]
   release:
     types: [created] # 表示在创建新的 Release 时触发
 

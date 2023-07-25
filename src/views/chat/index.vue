@@ -12,12 +12,11 @@ import { useChat } from './hooks/useChat'
 import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { useAuthStore, useChatStore, usePromptStore, useUserStore } from '@/store'
-import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchUpdateUserChatModel } from '@/api'
+import { useAuthStore, useChatStore, usePromptStore } from '@/store'
+import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding } from '@/api'
 import { t } from '@/locales'
 import { debounce } from '@/utils/functions/debounce'
 import IconPrompt from '@/icons/Prompt.vue'
-import { UserConfig } from '@/components/common/Setting/model'
 import type { CHATMODEL } from '@/components/common/Setting/model'
 const Prompt = defineAsyncComponent(() => import('@/components/common/Setting/Prompt.vue'))
 
@@ -30,7 +29,6 @@ const route = useRoute()
 const dialog = useDialog()
 const ms = useMessage()
 const authStore = useAuthStore()
-const userStore = useUserStore()
 const chatStore = useChatStore()
 
 const { isMobile } = useBasicLayout()
@@ -41,6 +39,7 @@ const { uuid } = route.params as { uuid: string }
 
 const currentChatHistory = computed(() => chatStore.getChatHistoryByCurrentActive)
 const usingContext = computed(() => currentChatHistory?.value?.usingContext ?? true)
+const currentChatModel = computed(() => currentChatHistory?.value?.chatModel ?? 'gpt-3.5-turbo')
 const dataSources = computed(() => chatStore.getChatByUuid(+uuid))
 const conversationList = computed(() => dataSources.value.filter(item => (!item.inversion && !!item.conversationOptions)))
 
@@ -49,8 +48,6 @@ const firstLoading = ref<boolean>(false)
 const loading = ref<boolean>(false)
 const inputRef = ref<Ref | null>(null)
 const showPrompt = ref(false)
-const nowSelectChatModel = ref<CHATMODEL | null>(null)
-const currentChatModel = computed(() => nowSelectChatModel.value ?? currentChatHistory.value?.chatModel ?? userStore.userInfo.config.chatModel)
 
 let loadingms: MessageReactive
 let allmsg: MessageReactive
@@ -80,9 +77,6 @@ async function onConversation() {
 
   if (!message || message.trim() === '')
     return
-
-  if (nowSelectChatModel.value && currentChatHistory.value)
-    currentChatHistory.value.chatModel = nowSelectChatModel.value
 
   controller = new AbortController()
 
@@ -582,26 +576,19 @@ const footerClass = computed(() => {
 })
 
 async function handleSyncChatModel(chatModel: CHATMODEL) {
-  nowSelectChatModel.value = chatModel
-  if (userStore.userInfo.config == null)
-    userStore.userInfo.config = new UserConfig()
-  userStore.userInfo.config.chatModel = chatModel
-  userStore.recordState()
-  await fetchUpdateUserChatModel(chatModel)
+  if (!currentChatHistory.value)
+    return
+
+  currentChatHistory.value.chatModel = chatModel
+  chatStore.setChatModel(currentChatHistory.value.chatModel, +uuid)
 }
 
 onMounted(() => {
   firstLoading.value = true
   handleSyncChat()
-
-  if (authStore.token) {
-    const chatModels = authStore.session?.chatModels
-    if (chatModels != null && chatModels.filter(d => d.value === userStore.userInfo.config.chatModel).length <= 0)
-      ms.error('你选择的模型已不存在，请重新选择 | The selected model not exists, please choose again.', { duration: 7000 })
-  }
 })
 
-watch(() => chatStore.active, (newVal, oldVal) => {
+watch(() => chatStore.active, () => {
   handleSyncChat()
 })
 

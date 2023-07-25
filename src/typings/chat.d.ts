@@ -27,7 +27,7 @@ declare namespace Chat {
     all?: boolean
     prompt?: string
     usingContext: boolean
-    chatModel?: CHATMODEL
+    chatModel: CHATMODEL
   }
 
   interface ChatState {

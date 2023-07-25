@@ -16,7 +16,7 @@ const { isMobile } = useBasicLayout()
 const loading = ref(false)
 const show = ref(false)
 const handleSaving = ref(false)
-const keyConfig = ref(new KeyConfig('', 'ChatGPTAPI', [], [], ''))
+const keyConfig = ref(new KeyConfig('', '', 'ChatGPTAPI', [], [], ''))
 
 const keys = ref([])
 const columns = [
@@ -28,6 +28,11 @@ const columns = [
     minWidth: 100,
     maxWidth: 200,
     ellipsis: true,
+  },
+  {
+    title: 'Api Base Url',
+    key: 'apiBaseUrl',
+    width: 220,
   },
   {
     title: 'Api Model',
@@ -191,7 +196,7 @@ async function handleUpdateKeyConfig() {
 }
 
 function handleNewKey() {
-  keyConfig.value = new KeyConfig('', 'ChatGPTAPI', [], [], '')
+  keyConfig.value = new KeyConfig('', '', 'ChatGPTAPI', [], [], '')
   show.value = true
 }
 
@@ -254,6 +259,15 @@ onMounted(async () => {
             <NInput
               v-model:value="keyConfig.key" type="textarea"
               :autosize="{ minRows: 3, maxRows: 4 }" placeholder=""
+            />
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.apiBaseUrl') }}</span>
+          <div class="flex-1">
+            <NInput
+              v-model:value="keyConfig.apiBaseUrl" type="textarea"
+              :autosize="{ minRows: 1, maxRows: 2 }" placeholder=""
             />
           </div>
         </div>

@@ -14,7 +14,7 @@ import { getCacheApiKeys, getCacheConfig, getOriginConfig } from '../storage/con
 import { sendResponse } from '../utils'
 import { hasAnyRole, isNotEmptyString } from '../utils/is'
 import type { ChatContext, ChatGPTUnofficialProxyAPIOptions, JWT, ModelConfig } from '../types'
-import { getChatByMessageId, updateRoomAccountId, updateRoomChatModel } from '../storage/mongo'
+import { getChatByMessageId, updateRoomAccountId } from '../storage/mongo'
 import type { RequestOptions } from './types'
 
 const { HttpsProxyAgent } = httpsProxyAgent
@@ -76,8 +76,10 @@ export async function initApi(key: KeyConfig, chatModel: CHATMODEL) {
       options.maxResponseTokens = 1024
     }
 
-    if (isNotEmptyString(OPENAI_API_BASE_URL))
-      options.apiBaseUrl = `${OPENAI_API_BASE_URL}/v1`
+    if (key.apiBaseUrl.length !== 0)
+      options.apiBaseUrl = `${key.apiBaseUrl}/v1`
+    else if (isNotEmptyString(OPENAI_API_BASE_URL))
+      options.apiBaseUrl = '$(OPENAI_API_BASE_URL)/v1'
 
     await setupProxy(options)
 
@@ -98,8 +100,8 @@ export async function initApi(key: KeyConfig, chatModel: CHATMODEL) {
 }
 const processThreads: { userId: string; abort: AbortController; messageId: string }[] = []
 async function chatReplyProcess(options: RequestOptions) {
-  const model = options.user.config.chatModel
-  const key = await getRandomApiKey(options.user, options.user.config.chatModel, options.room.accountId)
+  const model = options.room.chatModel ?? 'gpt-3.5-turbo'
+  const key = await getRandomApiKey(options.user, model, options.room.accountId)
   const userId = options.user._id.toString()
   const messageId = options.messageId
   if (key == null || key === undefined)
@@ -113,8 +115,6 @@ async function chatReplyProcess(options: RequestOptions) {
       || (!options.lastContext.conversationId && options.lastContext.parentMessageId)))
       throw new Error('无法在一个房间同时使用 AccessToken 以及 Api，请联系管理员，或新开聊天室进行对话 | Unable to use AccessToken and Api at the same time in the same room, please contact the administrator or open a new chat room for conversation')
   }
-
-  updateRoomChatModel(userId, options.room.roomId, model)
 
   const { message, lastContext, process, systemMessage, temperature, top_p } = options
 

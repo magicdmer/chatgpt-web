@@ -2,7 +2,7 @@ import { MongoClient, ObjectId } from 'mongodb'
 import * as dotenv from 'dotenv'
 import dayjs from 'dayjs'
 import { md5 } from '../utils/security'
-import { ChatInfo, ChatRoom, ChatUsage, Status, UserConfig, UserInfo, UserRole } from './model'
+import { ChatInfo, ChatRoom, ChatUsage, Status, UserInfo, UserRole } from './model'
 import type { CHATMODEL, ChatOptions, Config, KeyConfig, UsageResponse } from './model'
 
 dotenv.config()
@@ -216,11 +216,6 @@ export async function updateUserInfo(userId: string, user: UserInfo) {
     , { $set: { name: user.name, description: user.description, avatar: user.avatar } })
 }
 
-export async function updateUserChatModel(userId: string, chatModel: CHATMODEL) {
-  return userCol.updateOne({ _id: new ObjectId(userId) }
-    , { $set: { 'config.chatModel': chatModel } })
-}
-
 export async function updateUserPassword(userId: string, password: string) {
   return userCol.updateOne({ _id: new ObjectId(userId) }
     , { $set: { password, updateTime: new Date().toLocaleString() } })
@@ -257,10 +252,6 @@ export async function getUserById(userId: string): Promise<UserInfo> {
 function initUserInfo(userInfo: UserInfo) {
   if (userInfo == null)
     return
-  if (userInfo.config == null)
-    userInfo.config = new UserConfig()
-  if (userInfo.config.chatModel == null)
-    userInfo.config.chatModel = 'gpt-3.5-turbo'
   if (userInfo.roles == null || userInfo.roles.length <= 0) {
     userInfo.roles = [UserRole.User]
     if (process.env.ROOT_USER === userInfo.email.toLowerCase())

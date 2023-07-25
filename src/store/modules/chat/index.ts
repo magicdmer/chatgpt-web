@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { getLocalState, setLocalState } from './helper'
 import { router } from '@/router'
-import { fetchClearChat, fetchCreateChatRoom, fetchDeleteChat, fetchDeleteChatRoom, fetchGetChatHistory, fetchGetChatRooms, fetchRenameChatRoom, fetchUpdateChatRoomUsingContext } from '@/api'
+import { fetchClearChat, fetchCreateChatRoom, fetchDeleteChat, fetchDeleteChatRoom, fetchGetChatHistory, fetchGetChatRooms, fetchRenameChatRoom, fetchUpdateChatRoomChatModel, fetchUpdateChatRoomUsingContext } from '@/api'
+import type { CHATMODEL } from '@/components/common/Setting/model'
 
 export const useChatStore = defineStore('chat-store', {
   state: (): Chat.ChatState => getLocalState(),
@@ -24,7 +25,7 @@ export const useChatStore = defineStore('chat-store', {
   },
 
   actions: {
-    async syncHistory(callback: () => void) {
+    async syncHistory(callback?: () => void) {
       const rooms = (await fetchGetChatRooms()).data
       let uuid = this.active
       this.history = []
@@ -39,7 +40,7 @@ export const useChatStore = defineStore('chat-store', {
         this.chat.unshift({ uuid: r.uuid, data: [] })
       }
       if (uuid == null) {
-        await this.addHistory({ title: 'New Chat', uuid: Date.now(), isEdit: false, usingContext: true })
+        await this.addHistory({ title: 'New Chat', uuid: Date.now(), isEdit: false, usingContext: true, chatModel: 'gpt-3.5-turbo' })
       }
       else {
         this.active = uuid
@@ -94,8 +95,13 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
+    async setChatModel(model: CHATMODEL, roomId: number) {
+      await fetchUpdateChatRoomChatModel(model, roomId)
+      this.recordState()
+    },
+
     async addHistory(history: Chat.History, chatData: Chat.Chat[] = []) {
-      await fetchCreateChatRoom(history.title, history.uuid)
+      await fetchCreateChatRoom(history.title, history.chatModel, history.uuid)
       this.history.unshift(history)
       this.chat.unshift({ uuid: history.uuid, data: chatData })
       this.active = history.uuid
@@ -118,7 +124,7 @@ export const useChatStore = defineStore('chat-store', {
       this.chat.splice(index, 1)
 
       if (this.history.length === 0) {
-        await this.addHistory({ title: 'New Chat', uuid: Date.now(), isEdit: false, usingContext: true })
+        await this.addHistory({ title: 'New Chat', chatModel: 'gpt-3.5-turbo', uuid: Date.now(), isEdit: false, usingContext: true })
         return
       }
 
@@ -165,8 +171,8 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid || uuid === 0) {
         if (this.history.length === 0) {
           const uuid = Date.now()
-          fetchCreateChatRoom(chat.text, uuid)
-          this.history.push({ uuid, title: chat.text, isEdit: false, usingContext: true })
+          fetchCreateChatRoom(chat.text, 'gpt-3.5-turbo', uuid)
+          this.history.push({ uuid, title: chat.text, isEdit: false, usingContext: true, chatModel: 'gpt-3.5-turbo' })
           this.chat.push({ uuid, data: [chat] })
           this.active = uuid
           this.recordState()

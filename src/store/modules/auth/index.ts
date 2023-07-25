@@ -4,7 +4,7 @@ import type { UserInfo } from '../user/helper'
 import { getToken, removeToken, setToken } from './helper'
 import { store, useChatStore, useUserStore } from '@/store'
 import { fetchSession } from '@/api'
-import { UserConfig } from '@/components/common/Setting/model'
+import type { UserConfig } from '@/components/common/Setting/model'
 
 interface SessionResponse {
   auth: boolean
@@ -57,17 +57,12 @@ export const useAuthStore = defineStore('auth-store', {
       this.token = token
       const decoded = jwt_decode(token) as UserInfo
       const userStore = useUserStore()
-      if (decoded.config === undefined || decoded.config === null) {
-        decoded.config = new UserConfig()
-        decoded.config.chatModel = 'gpt-3.5-turbo'
-      }
 
       await userStore.updateUserInfo(false, {
         avatar: decoded.avatar,
         name: decoded.name,
         description: decoded.description,
         root: decoded.root,
-        config: decoded.config,
       })
       setToken(token)
     },
