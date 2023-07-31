@@ -79,7 +79,7 @@ router.get('/chatrooms', auth, async (req, res) => {
         chatModel: (r.chatModel === undefined || r.chatModel === null) ? 'gpt-3.5-turbo' : r.chatModel,
       }
       result.push(item)
-      console.error(`roomid:${item.uuid}, title:${item.title}, model:${item.chatModel}`)
+      // console.error(`roomid:${item.uuid}, title:${item.title}, model:${item.chatModel}`)
     })
     res.send({ status: 'Success', message: null, data: result })
   }
