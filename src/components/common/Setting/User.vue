@@ -30,8 +30,8 @@ const columns = [
     width: 220,
   },
   {
-    title: 'Verify Time',
-    key: 'verifyTime',
+    title: 'Visit Time',
+    key: 'visitTime',
     width: 220,
   },
   {

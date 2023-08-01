@@ -264,6 +264,11 @@ export async function verifyUser(email: string, status: Status) {
   return await userCol.updateOne({ email }, { $set: { status, verifyTime: new Date().toLocaleString() } })
 }
 
+export async function updateUserVisitTime(userId: string, visitTime: string)
+{
+  return await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { visitTime } })
+}
+
 export async function updateUserStatus(userId: string, status: Status) {
   return await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { status, verifyTime: new Date().toLocaleString() } })
 }

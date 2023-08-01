@@ -41,6 +41,7 @@ import {
   updateUserStatus,
   upsertKey,
   verifyUser,
+  updateUserVisitTime,
 } from './storage/mongo'
 import { authLimiter, limiter } from './middleware/limiter'
 import { hasAnyRole, isEmail, isNotEmptyString } from './utils/is'
@@ -614,6 +615,8 @@ router.post('/session', async (req, res) => {
           value: c.key,
         })
       })
+
+      updateUserVisitTime(userInfo.userId, new Date().toLocaleString())
     }
 
     res.send({

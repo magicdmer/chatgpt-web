@@ -31,6 +31,7 @@ export class UserInfo {
   status: Status
   createTime: string
   verifyTime?: string
+  visitTime?: string
   avatar?: string
   description?: string
   updateTime?: string
@@ -42,6 +43,7 @@ export class UserInfo {
     this.status = Status.PreVerify
     this.createTime = new Date().toLocaleString()
     this.verifyTime = null
+    this.visitTime = null
     this.updateTime = new Date().toLocaleString()
     this.roles = [UserRole.User]
   }
