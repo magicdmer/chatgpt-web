@@ -228,7 +228,7 @@ onMounted(async () => {
           :data="keys"
           :pagination="pagination"
           :max-height="444"
-          :scroll-x="1300"
+          :scroll-x="1570"
           striped @update:page="handleGetKeys"
         />
       </NSpace>
