@@ -86,9 +86,24 @@ const columns = [
     },
   },
   {
-    title: 'Remark',
-    key: 'remark',
-    width: 220,
+    title: 'Status',
+    key: 'status',
+    width: 200,
+    render(row: any) {
+      return h(
+        NTag,
+        {
+          style: {
+            marginRight: '6px',
+          },
+          type: 'info',
+          bordered: false,
+        },
+        {
+          default: () => row.status === Status.Disabled ? '未启用' : '启用',
+        },
+      )
+    },
   },
   {
     title: 'Action',
@@ -228,7 +243,7 @@ onMounted(async () => {
           :data="keys"
           :pagination="pagination"
           :max-height="444"
-          :scroll-x="1570"
+          :scroll-x="1550"
           striped @update:page="handleGetKeys"
         />
       </NSpace>
@@ -302,15 +317,6 @@ onMounted(async () => {
               :round="false"
               :value="keyConfig.status === Status.Normal"
               @update:value="(val) => { keyConfig.status = val ? Status.Normal : Status.Disabled }"
-            />
-          </div>
-        </div>
-        <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.remark') }}</span>
-          <div class="flex-1">
-            <NInput
-              v-model:value="keyConfig.remark" type="textarea"
-              :autosize="{ minRows: 1, maxRows: 2 }" placeholder=""
             />
           </div>
         </div>
