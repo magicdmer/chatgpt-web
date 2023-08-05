@@ -1,6 +1,7 @@
 import type { AxiosProgressEvent, GenericAbortSignal } from 'axios'
 import { get, post } from '@/utils/request'
-import type { AuditConfig, CHATMODEL, ConfigState, KeyConfig, MailConfig, SiteConfig, Status, UserInfo } from '@/components/common/Setting/model'
+import { Status } from '@/components/common/Setting/model'
+import type { AuditConfig, CHATMODEL, ConfigState, KeyConfig, MailConfig, SiteConfig, UserInfo } from '@/components/common/Setting/model'
 import { useAuthStore, useSettingStore } from '@/store'
 
 export function fetchChatConfig<T = any>() {
@@ -269,10 +270,18 @@ export function fetchGetKeys<T = any>(page: number, size: number) {
 }
 
 export function fetchUpdateApiKeyStatus<T = any>(id: string, status: Status) {
-  return post<T>({
-    url: '/setting-key-status',
-    data: { id, status },
-  })
+  if (status !== Status.Deleted) {
+    return post<T>({
+      url: '/setting-key-status',
+      data: { id, status },
+    })
+  }
+  else {
+    return post<T>({
+      url: '/setting-key-delete',
+      data: { id },
+    })
+  }
 }
 
 export function fetchUpsertApiKey<T = any>(keyConfig: KeyConfig) {

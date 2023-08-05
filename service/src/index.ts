@@ -15,6 +15,7 @@ import {
   createChatRoom,
   createUser,
   deleteAllChatRooms,
+  deleteApiKey,
   deleteChat,
   deleteChatRoom,
   existsChatRoom,
@@ -39,9 +40,9 @@ import {
   updateUserInfo,
   updateUserPassword,
   updateUserStatus,
+  updateUserVisitTime,
   upsertKey,
   verifyUser,
-  updateUserVisitTime,
 } from './storage/mongo'
 import { authLimiter, limiter } from './middleware/limiter'
 import { hasAnyRole, isEmail, isNotEmptyString } from './utils/is'
@@ -591,6 +592,7 @@ router.post('/session', async (req, res) => {
       }
 
       const keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles))
+        .filter(d => d.status !== Status.Disabled)
 
       const count: { key: string; count: number }[] = []
       chatModelOptions.forEach((chatModel) => {
@@ -936,6 +938,18 @@ router.post('/setting-key-status', rootAuth, async (req, res) => {
   try {
     const { id, status } = req.body as { id: string; status: Status }
     await updateApiKeyStatus(id, status)
+    clearApiKeyCache()
+    res.send({ status: 'Success', message: '更新成功 | Update successfully' })
+  }
+  catch (error) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+router.post('/setting-key-delete', rootAuth, async (req, res) => {
+  try {
+    const { id } = req.body as { id: string }
+    await deleteApiKey(id)
     clearApiKeyCache()
     res.send({ status: 'Success', message: '更新成功 | Update successfully' })
   }

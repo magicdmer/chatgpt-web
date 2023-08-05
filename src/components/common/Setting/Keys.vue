@@ -104,11 +104,11 @@ const columns = [
             marginRight: '6px',
           },
           type: 'error',
-          onClick: () => handleUpdateApiKeyStatus(row._id as string, Status.Disabled),
+          onClick: () => handleUpdateApiKeyStatus(row._id as string, Status.Deleted),
         },
         { default: () => t('common.delete') },
       ))
-      if (row.status === Status.Normal) {
+      if (row.status === Status.Normal || row.status === Status.Disabled) {
         actions.push(h(
           NButton,
           {

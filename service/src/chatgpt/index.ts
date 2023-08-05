@@ -6,6 +6,7 @@ import { SocksProxyAgent } from 'socks-proxy-agent'
 import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
 import type { AuditConfig, CHATMODEL, KeyConfig, UserInfo } from 'src/storage/model'
+import { Status } from 'src/storage/model'
 import jwt_decode from 'jwt-decode'
 import dayjs from 'dayjs'
 import type { TextAuditService } from '../utils/textAudit'
@@ -390,7 +391,7 @@ async function randomKeyConfig(keys: KeyConfig[]): Promise<KeyConfig | null> {
 
 async function getRandomApiKey(user: UserInfo, chatModel: CHATMODEL, accountId?: string): Promise<KeyConfig | undefined> {
   let keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles))
-    .filter(d => d.chatModels.includes(chatModel))
+    .filter(d => d.chatModels.includes(chatModel)).filter(d => d.status !== Status.Disabled)
   if (accountId)
     keys = keys.filter(d => d.keyModel === 'ChatGPTUnofficialProxyAPI' && getAccountId(d.key) === accountId)
 

@@ -264,8 +264,7 @@ export async function verifyUser(email: string, status: Status) {
   return await userCol.updateOne({ email }, { $set: { status, verifyTime: new Date().toLocaleString() } })
 }
 
-export async function updateUserVisitTime(userId: string, visitTime: string)
-{
+export async function updateUserVisitTime(userId: string, visitTime: string) {
   return await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { visitTime } })
 }
 
@@ -368,9 +367,8 @@ export async function getUserStatisticsByDay(userId: ObjectId, start: number, en
 }
 
 export async function getKeys(): Promise<{ keys: KeyConfig[]; total: number }> {
-  const query = { status: { $ne: Status.Disabled } }
-  const cursor = await keyCol.find(query)
-  const total = await keyCol.countDocuments(query)
+  const cursor = await keyCol.find()
+  const total = await keyCol.countDocuments()
   const keys = []
   await cursor.forEach(doc => keys.push(doc))
   return { keys, total }
@@ -386,4 +384,8 @@ export async function upsertKey(key: KeyConfig): Promise<KeyConfig> {
 
 export async function updateApiKeyStatus(id: string, status: Status) {
   return await keyCol.updateOne({ _id: new ObjectId(id) }, { $set: { status } })
+}
+
+export async function deleteApiKey(id: string) {
+  return await keyCol.deleteOne({ _id: new ObjectId(id) })
 }
