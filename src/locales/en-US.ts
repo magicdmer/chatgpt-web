@@ -36,6 +36,8 @@ export default {
     resetPassword: 'Reset Password',
     resetPasswordMail: 'Send Reset Password Mail',
     auditTip: 'Sensitive words do not take effect on Admin.',
+    block: 'block',
+    unblock: 'unblock',
   },
   chat: {
     newChatButton: 'New Chat',
@@ -66,6 +68,7 @@ export default {
     deleteUser: 'Delete User',
     editUser: 'Edit User',
     deleteUserConfirm: 'Are you sure to delete this user? After deletion, this email can never be registered or logged in again.',
+    blockUserConfirm: 'Are you sure to block this user? After block, this email can never be registered or logged in again.',
     verifiedUser: 'Verified User',
     deleteKey: 'Delete Key',
     editKeyButton: 'Edit Key',

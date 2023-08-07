@@ -13,6 +13,7 @@ const loading = ref(false)
 const show = ref(false)
 const handleSaving = ref(false)
 const userRef = ref(new UserInfo([UserRole.User]))
+const buttonText = ref('')
 
 const users = ref([])
 const columns = [
@@ -94,7 +95,7 @@ const columns = [
             },
             onClick: () => handleEditUser(row),
           },
-          { default: () => t('chat.editUser') },
+          { default: () => t('common.edit') },
         ))
       }
       if (row.status === Status.PreVerify || row.status === Status.AdminVerify) {
@@ -107,6 +108,32 @@ const columns = [
           },
           { default: () => t('chat.verifiedUser') },
         ))
+      }
+      else {
+        if (row.status === Status.Disabled) {
+          buttonText.value = t('common.unblock')
+          actions.push(h(
+            NButton,
+            {
+              size: 'small',
+              type: 'info',
+              onClick: () => handleUpdateUserStatus(row._id, Status.Normal),
+            },
+            { default: () => buttonText.value },
+          ))
+        }
+        else {
+          buttonText.value = t('common.block')
+          actions.push(h(
+            NButton,
+            {
+              size: 'small',
+              type: 'info',
+              onClick: () => handleUpdateUserStatus(row._id, Status.Disabled),
+            },
+            { default: () => buttonText.value },
+          ))
+        }
       }
       return actions
     },
@@ -163,10 +190,25 @@ async function handleUpdateUserStatus(userId: string, status: Status) {
       },
     })
   }
+  else if (status === Status.Disabled) {
+    dialog.warning({
+      title: t('common.block'),
+      content: t('chat.blockUserConfirm'),
+      positiveText: t('common.yes'),
+      negativeText: t('common.no'),
+      onPositiveClick: async () => {
+        await fetchUpdateUserStatus(userId, status)
+        ms.info('OK')
+        await handleGetUsers(pagination.page)
+        buttonText.value = t('common.unblock')
+      },
+    })
+  }
   else {
     await fetchUpdateUserStatus(userId, status)
     ms.info('OK')
     await handleGetUsers(pagination.page)
+    buttonText.value = t('common.block')
   }
 }
 

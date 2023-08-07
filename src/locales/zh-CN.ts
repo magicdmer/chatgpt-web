@@ -36,6 +36,8 @@ export default {
     resetPassword: '重置密码',
     resetPasswordMail: '发送重置密码邮件',
     auditTip: '敏感词对管理员不生效',
+    block: '拉黑',
+    unblock: '解封',
   },
   chat: {
     newChatButton: '新建聊天',
@@ -66,6 +68,7 @@ export default {
     deleteUser: '删除用户',
     editUser: '编辑用户',
     deleteUserConfirm: '你确定要删除这个用户吗? 删除后这个邮箱永远无法注册登录',
+    blockUserConfirm: '你确定要拉黑这个用户吗？拉黑后这个邮箱永远无法注册登录',
     verifiedUser: '通过验证',
     deleteKey: '删除 Key',
     editKeyButton: '编辑 Key',

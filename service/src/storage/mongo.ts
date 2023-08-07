@@ -229,9 +229,8 @@ export async function getUser(email: string): Promise<UserInfo> {
 }
 
 export async function getUsers(page: number, size: number): Promise<{ users: UserInfo[]; total: number }> {
-  const query = { status: { $ne: Status.Deleted } }
-  const cursor = userCol.find(query).sort({ createTime: -1 })
-  const total = await userCol.countDocuments(query)
+  const cursor = userCol.find().sort({ createTime: -1 })
+  const total = await userCol.countDocuments()
   const skip = (page - 1) * size
   const limit = size
   const pagedCursor = cursor.skip(skip).limit(limit)
@@ -269,7 +268,10 @@ export async function updateUserVisitTime(userId: string, visitTime: string) {
 }
 
 export async function updateUserStatus(userId: string, status: Status) {
-  return await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { status, verifyTime: new Date().toLocaleString() } })
+  if (status === Status.Deleted)
+    return await userCol.deleteOne({ _id: new ObjectId(userId) })
+  else
+    return await userCol.updateOne({ _id: new ObjectId(userId) }, { $set: { status, verifyTime: new Date().toLocaleString() } })
 }
 
 export async function updateUser(userId: string, roles: UserRole[], password: string) {
@@ -383,9 +385,8 @@ export async function upsertKey(key: KeyConfig): Promise<KeyConfig> {
 }
 
 export async function updateApiKeyStatus(id: string, status: Status) {
-  return await keyCol.updateOne({ _id: new ObjectId(id) }, { $set: { status } })
-}
-
-export async function deleteApiKey(id: string) {
-  return await keyCol.deleteOne({ _id: new ObjectId(id) })
+  if (status === Status.Deleted)
+    return await keyCol.deleteOne({ _id: new ObjectId(id) })
+  else
+    return await keyCol.updateOne({ _id: new ObjectId(id) }, { $set: { status } })
 }

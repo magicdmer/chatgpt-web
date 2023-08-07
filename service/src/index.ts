@@ -15,7 +15,6 @@ import {
   createChatRoom,
   createUser,
   deleteAllChatRooms,
-  deleteApiKey,
   deleteChat,
   deleteChatRoom,
   existsChatRoom,
@@ -777,7 +776,7 @@ router.post('/verify', authLimiter, async (req, res) => {
     const user = await getUser(username)
     if (user == null)
       throw new Error('账号不存在 | The email not exists')
-    if (user.status === Status.Deleted)
+    if (user.status === Status.Disabled)
       throw new Error('账号已禁用 | The email has been blocked')
     if (user.status === Status.Normal)
       throw new Error('账号已存在 | The email exists')
@@ -938,18 +937,6 @@ router.post('/setting-key-status', rootAuth, async (req, res) => {
   try {
     const { id, status } = req.body as { id: string; status: Status }
     await updateApiKeyStatus(id, status)
-    clearApiKeyCache()
-    res.send({ status: 'Success', message: '更新成功 | Update successfully' })
-  }
-  catch (error) {
-    res.send({ status: 'Fail', message: error.message, data: null })
-  }
-})
-
-router.post('/setting-key-delete', rootAuth, async (req, res) => {
-  try {
-    const { id } = req.body as { id: string }
-    await deleteApiKey(id)
     clearApiKeyCache()
     res.send({ status: 'Success', message: '更新成功 | Update successfully' })
   }
