@@ -8,8 +8,8 @@ import type { ChatMessage } from './chatgpt'
 import { abortChatProcess, chatConfig, chatReplyProcess, containsSensitiveWords, initAuditService } from './chatgpt'
 import { auth, getUserId } from './middleware/auth'
 import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig } from './storage/config'
-import type { AuditConfig, CHATMODEL, ChatInfo, ChatOptions, Config, KeyConfig, MailConfig, SiteConfig, UserInfo } from './storage/model'
 import { Status, UsageResponse, UserRole, chatModelOptions } from './storage/model'
+import type { AuditConfig, CHATMODEL, ChatInfo, ChatOptions, Config, KeyConfig, MailConfig, SiteConfig, UserInfo, UserOption } from './storage/model'
 import {
   clearChat,
   createChatRoom,
@@ -735,6 +735,24 @@ router.get('/users', rootAuth, async (req, res) => {
   }
 })
 
+router.get('/userOptions', rootAuth, async (req, res) => {
+  try {
+    const users = await getUsers(0, -1)
+
+    const data: UserOption[] = users.users.map((user: UserInfo) => ({
+      _id: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      roles: user.roles,
+    }))
+
+    res.send({ status: 'Success', message: '获取成功 | Get successfully', data })
+  }
+  catch (error) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
 router.post('/user-status', rootAuth, async (req, res) => {
   try {
     const { userId, status } = req.body as { userId: string; status: Status }
@@ -961,10 +979,15 @@ router.post('/setting-key-upsert', rootAuth, async (req, res) => {
 
 router.post('/statistics/by-day', auth, async (req, res) => {
   try {
-    const userId = req.headers.userId
-    const { start, end } = req.body as { start: number; end: number }
+    let userId = ''
 
-    const data = await getUserStatisticsByDay(new ObjectId(userId as string), start, end)
+    const { userid, start, end } = req.body as { userid: string; start: number; end: number }
+    if (userid.length === 0)
+      userId = req.headers.userId as string
+    else
+      userId = userid
+
+    const data = await getUserStatisticsByDay(new ObjectId(userId), start, end)
     res.send({ status: 'Success', message: '', data })
   }
   catch (error) {

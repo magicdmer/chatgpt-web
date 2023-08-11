@@ -100,6 +100,7 @@ export default {
     socksAuth: 'Socks Auth',
     httpsProxy: 'HTTPS Proxy',
     balance: 'API Balance',
+    statisticsUser: 'Statistics User',
     statisticsPeriod: 'Statistics Period',
     statisticsPeriodLastMonth: 'Last Month',
     statisticsPeriodCurrentMonth: 'Current Month',

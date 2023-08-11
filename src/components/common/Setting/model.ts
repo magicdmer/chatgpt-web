@@ -131,3 +131,10 @@ export class UserInfo {
     this.roles = roles
   }
 }
+
+export class UserOption {
+  _id?: string
+  name?: string
+  email?: string
+  roles?: UserRole[]
+}

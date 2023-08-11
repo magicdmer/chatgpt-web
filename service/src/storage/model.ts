@@ -49,6 +49,13 @@ export class UserInfo {
   }
 }
 
+export class UserOption {
+  _id?: string
+  name?: string
+  email?: string
+  roles?: UserRole[]
+}
+
 // https://platform.openai.com/docs/models/overview
 // 除此之外，gpt-4-0314、gpt-4-32k-0314、gpt-3.5-turbo-0301 模型将在 9 月 13 日被弃用。
 export type CHATMODEL = 'gpt-3.5-turbo' | 'gpt-3.5-turbo-0613' | 'gpt-3.5-turbo-16k' | 'gpt-3.5-turbo-16k-0613' | 'gpt-4' | 'gpt-4-32k' | 'gpt-4-0613' | 'gpt-4-32k-0613' | 'text-embedding-ada-002'

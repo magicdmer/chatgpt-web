@@ -100,6 +100,7 @@ export default {
     socksAuth: 'Socks 授权',
     httpsProxy: 'HTTPS Proxy',
     balance: 'API余额',
+    statisticsUser: '统计用户',
     statisticsPeriod: '统计时间段',
     statisticsPeriodLastMonth: '上月',
     statisticsPeriodCurrentMonth: '本月',

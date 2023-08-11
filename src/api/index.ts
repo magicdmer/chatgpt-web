@@ -123,6 +123,12 @@ export function fetchGetUsers<T = any>(page: number, size: number) {
   })
 }
 
+export function fetchGetAllUserOption<T = any>() {
+  return get<T>({
+    url: '/userOptions',
+  })
+}
+
 export function fetchUpdateUserStatus<T = any>(userId: string, status: Status) {
   return post<T>({
     url: '/user-status',
@@ -254,10 +260,10 @@ export function fetchUpdateBaseSetting<T = any>(config: ConfigState) {
   })
 }
 
-export function fetchUserStatistics<T = any>(start: number, end: number) {
+export function fetchUserStatistics<T = any>(userid: string, start: number, end: number) {
   return post<T>({
     url: '/statistics/by-day',
-    data: { start, end },
+    data: { userid, start, end },
   })
 }
 

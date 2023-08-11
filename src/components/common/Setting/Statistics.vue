@@ -1,15 +1,30 @@
 <script setup lang='ts'>
-import { nextTick, onMounted, reactive, ref } from 'vue'
-import { NCol, NDatePicker, NIcon, NNumberAnimation, NRow, NSpin, NStatistic } from 'naive-ui'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { NCol, NDatePicker, NIcon, NNumberAnimation, NRow, NSelect, NSpin, NStatistic } from 'naive-ui'
 import type { ChartData, ChartOptions } from 'chart.js'
 import { BarElement, CategoryScale, Chart as ChartJS, Legend, LinearScale, Title, Tooltip } from 'chart.js'
 import { Bar } from 'vue-chartjs'
 import dayjs from 'dayjs'
+import type { UserOption } from './model'
 import { t } from '@/locales'
-import { fetchUserStatistics } from '@/api'
+import { fetchGetAllUserOption, fetchUserStatistics } from '@/api'
 import { SvgIcon } from '@/components/common'
+import { useUserStore } from '@/store'
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
+
+const userStore = useUserStore()
+const selectedUser = ref('')
+
+const tempOptions = ref<UserOption[]>([])
+
+const userOptions = computed(() => {
+  return tempOptions.value.map((user: UserOption) => ({
+    value: user._id || '',
+    key: user.email || '',
+    label: user.email || '',
+  }))
+})
 
 const chartData: ChartData<'bar'> = reactive({
   labels: [],
@@ -65,7 +80,9 @@ const showChart = ref(true)
 async function fetchStatistics() {
   try {
     loading.value = true
+
     const { data } = await fetchUserStatistics(
+      selectedUser.value,
       dayjs(range.value[0]).startOf('day').valueOf(),
       dayjs(range.value[1]).endOf('day').valueOf(),
     )
@@ -91,7 +108,18 @@ async function fetchStatistics() {
   }
 }
 
+async function fetchUserUsageStatistics(value: string) {
+  selectedUser.value = value
+  fetchStatistics()
+}
+
+async function fetchUserOptions() {
+  const data = (await fetchGetAllUserOption()).data
+  tempOptions.value = data as UserOption[]
+}
+
 onMounted(() => {
+  fetchUserOptions()
   fetchStatistics()
 })
 </script>
@@ -101,6 +129,15 @@ onMounted(() => {
     <div class="p-4 space-y-5 min-h-[200px]">
       <div class="space-y-6">
         <div class="flex items-center space-x-4">
+          <span v-if="userStore.userInfo.root" class="flex-shrink-0 w-[100px]">{{ $t('setting.statisticsUser') }}</span>
+          <div v-if="userStore.userInfo.root" class="flex-1">
+            <NSelect
+              style="width: 240px"
+              :value="selectedUser"
+              :options="userOptions"
+              @update-value="value => fetchUserUsageStatistics(value)"
+            />
+          </div>
           <span class="flex-shrink-0 w-[100px]">{{ $t('setting.statisticsPeriod') }}</span>
           <div class="flex-1">
             <NDatePicker

@@ -231,14 +231,21 @@ export async function getUser(email: string): Promise<UserInfo> {
 export async function getUsers(page: number, size: number): Promise<{ users: UserInfo[]; total: number }> {
   const cursor = userCol.find().sort({ createTime: -1 })
   const total = await userCol.countDocuments()
-  const skip = (page - 1) * size
-  const limit = size
-  const pagedCursor = cursor.skip(skip).limit(limit)
+
   const users: UserInfo[] = []
-  await pagedCursor.forEach(doc => users.push(doc))
+  if (size === -1) {
+    await cursor.forEach(doc => users.push(doc))
+  }
+  else {
+    const skip = (page - 1) * size
+    const limit = size
+    const pagedCursor = cursor.skip(skip).limit(limit)
+    await pagedCursor.forEach(doc => users.push(doc))
+  }
   users.forEach((user) => {
     initUserInfo(user)
   })
+
   return { users, total }
 }
 
