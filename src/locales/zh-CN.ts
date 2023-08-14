@@ -67,7 +67,7 @@ export default {
     usageTotal: '总消耗 token',
     deleteUser: '删除用户',
     editUser: '编辑用户',
-    deleteUserConfirm: '你确定要删除这个用户吗? 删除后这个邮箱永远无法注册登录',
+    deleteUserConfirm: '你确定要删除这个用户吗? ',
     blockUserConfirm: '你确定要拉黑这个用户吗？拉黑后这个邮箱永远无法注册登录',
     verifiedUser: '通过验证',
     deleteKey: '删除 Key',

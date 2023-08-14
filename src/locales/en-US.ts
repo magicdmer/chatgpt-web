@@ -67,7 +67,7 @@ export default {
     usageTotal: 'Total token cost',
     deleteUser: 'Delete User',
     editUser: 'Edit User',
-    deleteUserConfirm: 'Are you sure to delete this user? After deletion, this email can never be registered or logged in again.',
+    deleteUserConfirm: 'Are you sure to delete this user?',
     blockUserConfirm: 'Are you sure to block this user? After block, this email can never be registered or logged in again.',
     verifiedUser: 'Verified User',
     deleteKey: 'Delete Key',
