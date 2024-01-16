@@ -59,17 +59,17 @@ const columns = [
     },
   },
   {
-    title: 'Status',
-    key: 'status',
-    width: 200,
-    render(row: any) {
-      return Status[row.status]
-    },
-  },
-  {
     title: 'Remark',
     key: 'remark',
     width: 220,
+  },
+  {
+    title: 'Status',
+    key: 'status',
+    width: 150,
+    render(row: any) {
+      return Status[row.status]
+    },
   },
   {
     title: 'Action',
@@ -264,7 +264,7 @@ onMounted(async () => {
           :pagination="pagination"
           :max-height="444"
           striped
-          :scroll-x="1260"
+          :scroll-x="1430"
           @update:page="handleGetUsers"
         />
       </NSpace>
