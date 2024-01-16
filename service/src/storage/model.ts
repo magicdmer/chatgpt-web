@@ -36,6 +36,7 @@ export class UserInfo {
   description?: string
   updateTime?: string
   roles?: UserRole[]
+  remark?: string
   constructor(email: string, password: string) {
     this.name = email
     this.email = email
@@ -46,6 +47,7 @@ export class UserInfo {
     this.visitTime = null
     this.updateTime = new Date().toLocaleString()
     this.roles = [UserRole.User]
+    this.remark = null
   }
 }
 
@@ -54,6 +56,7 @@ export class UserOption {
   name?: string
   email?: string
   roles?: UserRole[]
+  remark?: string
 }
 
 // https://platform.openai.com/docs/models/overview

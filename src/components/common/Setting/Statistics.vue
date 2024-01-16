@@ -22,7 +22,7 @@ const userOptions = computed(() => {
   return tempOptions.value.map((user: UserOption) => ({
     value: user._id || '',
     key: user.email || '',
-    label: user.email || '',
+    label: user.remark ? user.remark : user.email,
   }))
 })
 
