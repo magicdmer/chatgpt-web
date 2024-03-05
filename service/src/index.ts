@@ -416,10 +416,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       tryCount: 0,
       room,
     })
-
-    if (result.data.text === undefined)
-      result.data.text = result.data.message
-
+      
     // return the whole response including usage
     if (!result.data.detail?.usage) {
       if (!result.data.detail)
@@ -431,6 +428,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       result.data.detail.usage.total_tokens = result.data.detail.usage.prompt_tokens + result.data.detail.usage.completion_tokens
       result.data.detail.usage.estimated = true
     }
+
     res.write(`\n${JSON.stringify(result.data)}`)
   }
   catch (error) {

@@ -129,7 +129,7 @@ async function draw(url: string, key: string, prompt: string, model: string): Pr
     })
 
     const imageUrl = `![我的图片](${response.data.data[0].url})`
-    return imageUrl
+    return imageUrl;
   }
   catch (error) {
     console.error(error)
@@ -162,9 +162,9 @@ async function chatReplyProcess(options: RequestOptions) {
     try {
       const imageUrl = await draw(`${key.apiBaseUrl}/v1/images/generations`, key.key, message, model)
       const dataRes = {
-        status: 'Fail',
-        message: imageUrl,
-        data: null,
+        status: 'Success',
+        message: '',
+        text: imageUrl,
       }
 
       return sendResponse({ type: 'Success', data: dataRes })
