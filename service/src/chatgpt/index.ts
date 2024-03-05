@@ -7,6 +7,7 @@ import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
 import jwt_decode from 'jwt-decode'
 import dayjs from 'dayjs'
+import axios from 'axios'
 import type { AuditConfig, CHATMODEL, KeyConfig, UserInfo } from '../storage/model'
 import { Status } from '../storage/model'
 import type { TextAuditService } from '../utils/textAudit'
@@ -99,7 +100,45 @@ export async function initApi(key: KeyConfig, chatModel: CHATMODEL) {
     return new ChatGPTUnofficialProxyAPI({ ...options })
   }
 }
+
+async function draw(url: string, key: string, prompt: string, model: string): Promise<string> {
+  let jsondata = {}
+  if (model === 'dall-e-2') {
+    jsondata = {
+      model,
+      prompt,
+      n: 1,
+      size: '512x512',
+    }
+  }
+  else {
+    jsondata = {
+      model,
+      prompt,
+      n: 1,
+      size: '1024x1024',
+    }
+  }
+
+  try {
+    const response = await axios.post(url, jsondata, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`,
+      },
+    })
+
+    const imageUrl = `![我的图片](${response.data.data[0].url})`
+    return imageUrl
+  }
+  catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 const processThreads: { userId: string; abort: AbortController; messageId: string }[] = []
+
 async function chatReplyProcess(options: RequestOptions) {
   const model = options.room.chatModel ?? 'gpt-3.5-turbo'
   const key = await getRandomApiKey(options.user, model, options.room.accountId)
@@ -114,10 +153,26 @@ async function chatReplyProcess(options: RequestOptions) {
 
     if (options.lastContext && ((options.lastContext.conversationId && !options.lastContext.parentMessageId)
       || (!options.lastContext.conversationId && options.lastContext.parentMessageId)))
-      throw new Error('无法在一个房间同时使用 AccessToken 以及 Api，请联系管理员，或新开聊天室进行对话 | Unable to use AccessToken and Api at the same time in the same room, please contact the administrator or open a new chat room for conversation')
+      throw new Error('无法在一个房间同时使用 AccessToken 以及 Api,请联系管理员,或新开聊天室进行对话 | Unable to use AccessToken and Api at the same time in the same room, please contact the administrator or open a new chat room for conversation')
   }
 
   const { message, lastContext, process, systemMessage, temperature, top_p } = options
+
+  if (model === 'dall-e-2' || model === 'dall-e-3') {
+    try {
+      const imageUrl = await draw(`${key.apiBaseUrl}/v1/images/generations`, key.key, message, model)
+      const dataRes = {
+        status: 'Fail',
+        message: imageUrl,
+        data: null,
+      }
+
+      return sendResponse({ type: 'Success', data: dataRes })
+    }
+    catch (error) {
+      return sendResponse({ type: 'Fail', message: error })
+    }
+  }
 
   try {
     const timeoutMs = (await getCacheConfig()).timeoutMs

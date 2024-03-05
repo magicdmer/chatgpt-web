@@ -416,6 +416,10 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       tryCount: 0,
       room,
     })
+
+    if (result.data.text === undefined)
+      result.data.text = result.data.message
+
     // return the whole response including usage
     if (!result.data.detail?.usage) {
       if (!result.data.detail)
