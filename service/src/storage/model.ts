@@ -62,18 +62,18 @@ export class UserOption {
 // https://platform.openai.com/docs/models/overview
 export type CHATMODEL = 'gpt-3.5-turbo' | 'gpt-3.5-turbo-16k' | 'gpt-3.5-turbo-0125' | 'gpt-3.5-turbo-1106' |
 'gpt-4' | 'gpt-4-32k' | 'gpt-4-turbo-preview' | 'gpt-4-0125-preview' | 'gpt-4-0613' | 'gpt-4-32k-0613' |
-'text-embedding-ada-002' | 'dall-e-2' | 'dall-e-3'
+'text-embedding-ada-002' | 'dall-e-2' | 'dall-e-3' | 'gemini-pro' | 'gemini-pro-vision' | 'claude-2' | 'claude-3-sonnet' | 'claude-3-opus' 
 
 export const CHATMODELS: CHATMODEL[] = [
   'gpt-3.5-turbo', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo-0125', 'gpt-3.5-turbo-1106', 'gpt-4', 'gpt-4-32k',
   'gpt-4-turbo-preview', 'gpt-4-0125-preview', 'gpt-4-0613', 'gpt-4-32k-0613', 'text-embedding-ada-002',
-  'dall-e-2', 'dall-e-3',
+  'dall-e-2', 'dall-e-3', 'gemini-pro', 'gemini-pro-vision', 'claude-2', 'claude-3-sonnet', 'claude-3-opus',
 ]
 
 export const chatModelOptions = [
   'gpt-3.5-turbo', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo-0125', 'gpt-3.5-turbo-1106', 'gpt-4', 'gpt-4-32k',
   'gpt-4-turbo-preview', 'gpt-4-0125-preview', 'gpt-4-0613', 'gpt-4-32k-0613', 'text-embedding-ada-002',
-  'dall-e-2', 'dall-e-3',
+  'dall-e-2', 'dall-e-3', 'gemini-pro', 'gemini-pro-vision', 'claude-2', 'claude-3-sonnet', 'claude-3-opus',
 ].map((model: string) => {
   const label = model
   return {
