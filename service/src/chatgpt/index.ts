@@ -141,7 +141,7 @@ async function draw(url: string, key: string, prompt: string, model: string): Pr
     })
 
     const imageUrl = `![我的图片](${response.data.data[0].url})`
-    return imageUrl;
+    return imageUrl
   }
   catch (error) {
     console.error(error)
