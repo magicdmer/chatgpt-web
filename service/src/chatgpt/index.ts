@@ -84,6 +84,22 @@ export async function initApi(key: KeyConfig, chatModel: CHATMODEL) {
       options.maxModelTokens = 204800
       options.maxResponseTokens = 4096
     }
+    else if (model.toLowerCase().includes('glm')) {
+      options.maxModelTokens = 8192
+      options.maxResponseTokens = 1024
+    }
+    else if (model.toLowerCase().includes('qwen-turbo')) {
+      options.maxModelTokens = 8192
+      options.maxResponseTokens = 1024
+    }
+    else if (model.toLowerCase().includes('qwen-plus')) {
+      options.maxModelTokens = 30720
+      options.maxResponseTokens = 2048
+    }
+    else if (model.toLowerCase().includes('qwen-max')) {
+      options.maxModelTokens = 6144
+      options.maxResponseTokens = 1024
+    }
     else {
       // If none of the above, use the default values, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
       options.maxModelTokens = 4096
