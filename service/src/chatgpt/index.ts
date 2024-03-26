@@ -100,6 +100,10 @@ export async function initApi(key: KeyConfig, chatModel: CHATMODEL) {
       options.maxModelTokens = 6144
       options.maxResponseTokens = 1024
     }
+    else if (model.toLowerCase().includes('yi-34b-chat-200k')) {
+      options.maxModelTokens = 204800
+      options.maxResponseTokens = 4096
+    }
     else {
       // If none of the above, use the default values, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
       options.maxModelTokens = 4096
