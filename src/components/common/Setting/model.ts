@@ -20,7 +20,7 @@ export type CHATMODEL = 'gpt-3.5-turbo' | 'gpt-3.5-turbo-16k' | 'gpt-3.5-turbo-0
 'gpt-4' | 'gpt-4-32k' | 'gpt-4-turbo-preview' | 'gpt-4-0125-preview' | 'gpt-4-0613' | 'gpt-4-32k-0613' | 'gpt-4-all' |
 'text-embedding-ada-002' | 'dall-e-2' | 'dall-e-3' | 'gemini-pro' | 'gemini-pro-vision' | 'claude-2' |
 'claude-3-sonnet' | 'claude-3-opus' | 'claude-3-haiku' | 'glm-3-turbo' | 'glm-4' | 'qwen-turbo' | 'qwen-plus' | 'qwen-max'|
-'yi-34b-chat-0205' | 'yi-34b-chat-200k' | 'yi-vl-plus' | 'gpt-3.5-turbo-online-with-gs' | 'gpt-4-online-with-gs' |
+'yi-34b-chat-0205' | 'yi-34b-chat-200k' | 'yi-vl-plus' | 'SparkDesk-v3.5' | 'gpt-3.5-turbo-online-with-gs' | 'gpt-4-online-with-gs' |
 'gpt-4-1106-preview-online-with-gs'
 
 export class UserConfig {

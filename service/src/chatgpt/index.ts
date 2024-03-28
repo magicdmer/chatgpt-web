@@ -72,6 +72,11 @@ export async function initApi(key: KeyConfig, chatModel: CHATMODEL) {
       options.maxModelTokens = 8192
       options.maxResponseTokens = 2048
     }
+    else if (model.toLowerCase().includes('gpt-4-all')) {
+      // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
+      options.maxModelTokens = 32768
+      options.maxResponseTokens = 2048
+    }
     else if (model.toLowerCase().includes('gemini-pro')) {
       options.maxModelTokens = 30720
       options.maxResponseTokens = 2048
@@ -103,6 +108,10 @@ export async function initApi(key: KeyConfig, chatModel: CHATMODEL) {
     else if (model.toLowerCase().includes('yi-34b-chat-200k')) {
       options.maxModelTokens = 204800
       options.maxResponseTokens = 4096
+    }
+    else if (model.toLowerCase().includes('SparkDesk')) {
+      options.maxModelTokens = 8192
+      options.maxResponseTokens = 1024
     }
     else {
       // If none of the above, use the default values, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
