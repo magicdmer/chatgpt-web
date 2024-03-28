@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv'
 import 'isomorphic-fetch'
-import type { ChatGPTAPIOptions, ChatMessage, SendMessageOptions } from 'chatgpt'
-import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt'
+import type { ChatGPTAPIOptions, ChatMessage, SendMessageOptions } from 'chatgpt-mg'
+import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt-mg'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
@@ -220,8 +220,12 @@ async function chatReplyProcess(options: RequestOptions) {
     let options: SendMessageOptions = { timeoutMs }
 
     if (key.keyModel === 'ChatGPTAPI') {
-      if (isNotEmptyString(systemMessage))
-        options.systemMessage = systemMessage
+      if (isNotEmptyString(systemMessage)) {
+        if (systemMessage.startsWith('g-') && systemMessage.length === 11 && model === 'gpt-4-all')
+          options.gizmo_id = systemMessage
+        else
+          options.systemMessage = systemMessage
+      }
       options.completionParams = { model, temperature, top_p }
     }
 

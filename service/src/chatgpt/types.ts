@@ -1,4 +1,4 @@
-import type { ChatMessage } from 'chatgpt'
+import type { ChatMessage } from 'chatgpt-mg'
 import type { ChatRoom, UserInfo } from 'src/storage/model'
 
 export interface RequestOptions {

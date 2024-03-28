@@ -1,4 +1,4 @@
-import type { FetchFn } from 'chatgpt'
+import type { FetchFn } from 'chatgpt-mg'
 
 export interface RequestProps {
   roomId: number
