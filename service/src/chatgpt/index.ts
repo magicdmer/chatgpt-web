@@ -35,11 +35,10 @@ const ErrorCodeMessage: Record<string, string> = {
 let auditService: TextAuditService
 const _lockedKeys: { key: string; lockedTime: number }[] = []
 
-export async function initApi(key: KeyConfig, chatModel: CHATMODEL) {
+export async function initApi(key: KeyConfig, model: string) {
   // More Info: https://github.com/transitive-bullshit/chatgpt-api
 
   const config = await getCacheConfig()
-  const model = chatModel as string
 
   if (key.keyModel === 'ChatGPTAPI') {
     const OPENAI_API_BASE_URL = config.apiBaseUrl
@@ -67,14 +66,19 @@ export async function initApi(key: KeyConfig, chatModel: CHATMODEL) {
       options.maxModelTokens = 32768
       options.maxResponseTokens = 8192
     }
-    else if (model.toLowerCase().includes('gpt-4')) {
-      // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
-      options.maxModelTokens = 8192
-      options.maxResponseTokens = 2048
-    }
     else if (model.toLowerCase().includes('gpt-4-all')) {
       // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
       options.maxModelTokens = 32768
+      options.maxResponseTokens = 2048
+    }
+    else if (model.toLowerCase().includes('gpt-4-gizmo')) {
+      // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
+      options.maxModelTokens = 32768
+      options.maxResponseTokens = 2048
+    }
+    else if (model.toLowerCase().includes('gpt-4')) {
+      // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
+      options.maxModelTokens = 8192
       options.maxResponseTokens = 2048
     }
     else if (model.toLowerCase().includes('gemini-pro')) {
@@ -182,6 +186,7 @@ const processThreads: { userId: string; abort: AbortController; messageId: strin
 
 async function chatReplyProcess(options: RequestOptions) {
   const model = options.room.chatModel ?? 'gpt-3.5-turbo'
+  let strModel = model as string
   const key = await getRandomApiKey(options.user, model, options.room.accountId)
   const userId = options.user._id.toString()
   const messageId = options.messageId
@@ -223,6 +228,8 @@ async function chatReplyProcess(options: RequestOptions) {
       if (isNotEmptyString(systemMessage)) {
         if (systemMessage.startsWith('g-') && systemMessage.length === 11 && model === 'gpt-4-all')
           options.gizmo_id = systemMessage
+        else if (systemMessage.startsWith('g-') && systemMessage.length === 11 && model === 'gpt-4-gizmo')
+          strModel = `gpt-4-gizmo-${systemMessage}`
         else
           options.systemMessage = systemMessage
       }
@@ -235,7 +242,7 @@ async function chatReplyProcess(options: RequestOptions) {
       else
         options = { ...lastContext }
     }
-    const api = await initApi(key, model)
+    const api = await initApi(key, strModel)
 
     const abort = new AbortController()
     options.abortSignal = abort.signal
