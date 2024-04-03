@@ -185,9 +185,9 @@ async function draw(url: string, key: string, prompt: string, model: string): Pr
 const processThreads: { userId: string; abort: AbortController; messageId: string }[] = []
 
 async function chatReplyProcess(options: RequestOptions) {
-  const model = options.room.chatModel ?? 'gpt-3.5-turbo'
-  let strModel = model as string
-  const key = await getRandomApiKey(options.user, model, options.room.accountId)
+  const chatModel = options.room.chatModel ?? 'gpt-3.5-turbo'
+  let model = chatModel as string
+  const key = await getRandomApiKey(options.user, chatModel, options.room.accountId)
   const userId = options.user._id.toString()
   const messageId = options.messageId
   if (key == null || key === undefined)
@@ -204,9 +204,9 @@ async function chatReplyProcess(options: RequestOptions) {
 
   const { message, lastContext, process, systemMessage, temperature, top_p } = options
 
-  if (model === 'dall-e-2' || model === 'dall-e-3') {
+  if (chatModel === 'dall-e-2' || chatModel === 'dall-e-3') {
     try {
-      const imageUrl = await draw(`${key.apiBaseUrl}/v1/images/generations`, key.key, message, model)
+      const imageUrl = await draw(`${key.apiBaseUrl}/v1/images/generations`, key.key, message, chatModel)
       const dataRes = {
         status: 'Success',
         message: '',
@@ -226,12 +226,15 @@ async function chatReplyProcess(options: RequestOptions) {
 
     if (key.keyModel === 'ChatGPTAPI') {
       if (isNotEmptyString(systemMessage)) {
-        if (systemMessage.startsWith('g-') && systemMessage.length === 11 && model === 'gpt-4-all')
+        if (systemMessage.startsWith('g-') && systemMessage.length === 11 && chatModel === 'gpt-4-all') {
           options.gizmo_id = systemMessage
-        else if (systemMessage.startsWith('g-') && systemMessage.length === 11 && model === 'gpt-4-gizmo')
-          strModel = `gpt-4-gizmo-${systemMessage}`
-        else
-          options.systemMessage = systemMessage
+          options.systemMessage = ''
+        }
+        else if (systemMessage.startsWith('g-') && systemMessage.length === 11 && chatModel === 'gpt-4-gizmo') {
+          model = `gpt-4-gizmo-${systemMessage}`
+          options.systemMessage = ''
+        }
+        else { options.systemMessage = systemMessage }
       }
       options.completionParams = { model, temperature, top_p }
     }
@@ -242,7 +245,7 @@ async function chatReplyProcess(options: RequestOptions) {
       else
         options = { ...lastContext }
     }
-    const api = await initApi(key, strModel)
+    const api = await initApi(key, model)
 
     const abort = new AbortController()
     options.abortSignal = abort.signal
