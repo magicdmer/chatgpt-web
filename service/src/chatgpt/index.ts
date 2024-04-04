@@ -234,6 +234,9 @@ async function chatReplyProcess(options: RequestOptions) {
           model = `gpt-4-gizmo-${systemMessage}`
           options.systemMessage = ''
         }
+        else if (systemMessage.startsWith('g-') && systemMessage.length === 11) {
+          options.systemMessage = ''
+        }
         else { options.systemMessage = systemMessage }
       }
       options.completionParams = { model, temperature, top_p }
