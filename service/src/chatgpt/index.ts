@@ -127,7 +127,7 @@ export async function initApi(key: KeyConfig, model: string) {
     }
     else if (model.toLowerCase().includes('command-r')) {
       options.maxModelTokens = 131072
-      options.maxResponseTokens = 4096
+      options.maxResponseTokens = 2048
     }
     else {
       // If none of the above, use the default values, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
