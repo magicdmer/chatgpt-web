@@ -5,8 +5,8 @@ dependencies:
     specifier: ^1.3.4
     version: 1.3.4
   chatgpt-mg:
-    specifier: ^5.2.6
-    version: 5.2.6
+    specifier: ^5.2.7
+    version: 5.2.7
   dayjs:
     specifier: ^1.11.7
     version: 1.11.7
@@ -992,8 +992,8 @@ packages:
     resolution: {integrity: sha512-mKKUkUbhPpQlCOfIuZkvSEgktjPFIsZKRRbC6KWVEMvlzblj3i3asQv5ODsrwt0N3pHAEvjP8KTQPHkp0+6jOg==}
     dev: true
 
-  /chatgpt-mg@5.2.6:
-    resolution: {integrity: sha512-pU/A6knNziqJQ0ahDlrCxEGgU5Le9uQpVgs6wWXh5yZu0jngFJ6+AssoAtxvI966hnwamFrShIbaaoVY+cEfTQ==}
+  /chatgpt-mg@5.2.7:
+    resolution: {integrity: sha512-bc0vMhCCkHEMk8/pl5ZpJ2bVf6NPwNlq34665N8beU6LkVLBulYs9h8jOCTT23dFB8DcJKLp8w3+ezFXaMA2og==}
     engines: {node: '>=14'}
     hasBin: true
     dependencies:
