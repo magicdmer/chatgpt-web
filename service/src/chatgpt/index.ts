@@ -93,9 +93,9 @@ export async function initApi(key: KeyConfig, model: string) {
       options.maxModelTokens = 8192
       options.maxResponseTokens = 2048
     }
-    else if (model.toLowerCase().includes('gemini-pro-vision')) {
-      options.maxModelTokens = 12288
-      options.maxResponseTokens = 4096
+    else if (model.toLowerCase().includes('gemini-1.5-pro')) {
+      options.maxModelTokens = 102400
+      options.maxResponseTokens = 2048
     }
     else if (model.toLowerCase().includes('gemini-pro')) {
       options.maxModelTokens = 30720
@@ -127,6 +127,10 @@ export async function initApi(key: KeyConfig, model: string) {
     }
     else if (model.toLowerCase().includes('command-r')) {
       options.maxModelTokens = 131072
+      options.maxResponseTokens = 2048
+    }
+    else if (model.toLowerCase().includes('deepseek')) {
+      options.maxModelTokens = 32768
       options.maxResponseTokens = 2048
     }
     else {

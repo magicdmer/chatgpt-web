@@ -18,10 +18,11 @@ export class ConfigState {
 // https://platform.openai.com/docs/models/overview
 export type CHATMODEL = 'gpt-3.5-turbo' | 'gpt-3.5-turbo-16k' | 'gpt-3.5-turbo-0125' | 'gpt-3.5-turbo-1106' |
 'gpt-4' | 'gpt-4-32k' | 'gpt-4-turbo-preview' | 'gpt-4-0125-preview' | 'gpt-4-0613' | 'gpt-4-32k-0613' | 'gpt-4-all' |
-'gpt-4-gizmo' | 'gpt-4-turbo' | 'gpt-4-turbo-2024-04-09' | 'dall-e-2' | 'dall-e-3' | 'gemini-pro' | 'gemini-pro-vision' | 'claude-2' |
+'gpt-4-gizmo' | 'gpt-4-turbo' | 'gpt-4-turbo-2024-04-09' | 'dall-e-2' | 'dall-e-3' | 'gemini-pro' | 'gemini-1.5-pro' | 'claude-2' |
 'claude-3-sonnet' | 'claude-3-opus' | 'claude-3-haiku' | 'glm-3-turbo' | 'glm-4' | 'qwen-turbo' | 'qwen-plus' | 'qwen-max' |
 'yi-34b-chat-0205' | 'yi-34b-chat-200k' | 'yi-vl-plus' | 'SparkDesk-v3.5' | 'command-r' | 'command-r-plus' | 'command-r-plus-online' |
-'moonshot-v1-8k' | 'moonshot-v1-32k' | 'moonshot-v1-128k' | 'concise' | 'detail' | 'research'
+'moonshot-v1-8k' | 'moonshot-v1-32k' | 'moonshot-v1-128k' | 'concise' | 'detail' | 'research' | 'step-1-32k' | 'step-1-200k' |
+'deepseek-chat' | 'deepseek-coder'
 
 export class UserConfig {
   chatModel?: CHATMODEL
