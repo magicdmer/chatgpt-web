@@ -62,33 +62,34 @@ export class UserOption {
 // https://platform.openai.com/docs/models/overview
 export type CHATMODEL = 'gpt-3.5-turbo' | 'gpt-3.5-turbo-16k' | 'gpt-3.5-turbo-0125' | 'gpt-3.5-turbo-1106' |
 'gpt-4' | 'gpt-4-32k' | 'gpt-4-turbo-preview' | 'gpt-4-0125-preview' | 'gpt-4-0613' | 'gpt-4-32k-0613' | 'gpt-4-all' |
-'gpt-4-gizmo' | 'gpt-4-turbo' | 'gpt-4-turbo-2024-04-09' | 'gpt-4o' | 'gpt-4o-2024-05-13' | 'gpt-4o-all' | 'dall-e-2' |
-'dall-e-3' | 'gemini-pro' | 'gemini-1.5-pro' | 'claude-2' | 'claude-3-sonnet' | 'claude-3.5-sonnet' | 'claude-3-opus' |
-'claude-3-haiku' | 'glm-4-air' | 'glm-4-airx' | 'glm-4' | 'glm-4-flash' | 'glm-4-0520' | 'qwen-turbo' | 'qwen-plus' |
-'qwen-max' | 'yi-large' | 'yi-medium' | 'yi-medium-200k' | 'yi-spark' | 'yi-large-rag' | 'yi-large-turbo' | 'yi-vl-plus' |
-'SparkDesk-v3.5' | 'command-r' | 'command-r-plus' | 'command-r-plus-online' | 'moonshot-v1-8k' | 'moonshot-v1-32k' |
-'moonshot-v1-128k' | 'concise' | 'detail' | 'research' | 'step-1-32k' | 'step-1-200k' | 'deepseek-chat' | 'deepseek-coder'
+'gpt-4-gizmo' | 'gpt-4-turbo' | 'gpt-4-turbo-2024-04-09' | 'gpt-4o' | 'gpt-4o-2024-08-06' | 'gpt-4o-all' | 'o1-preview' |
+'o1-preview-2024-09-12' | 'o1-mini' | 'o1-mini-2024-09-12' | 'dall-e-2' | 'dall-e-3' | 'gemini-pro' | 'gemini-1.5-pro' | 'gemini-1.5-pro-exp-0827' |
+'claude-2' | 'claude-3-sonnet' | 'claude-3.5-sonnet' | 'claude-3-opus' | 'claude-3-haiku' | 'glm-4-air' | 'glm-4-airx' | 'glm-4' | 'glm-4-flash' | 'glm-4-0520' | 'glm-4-plus' | 'qwen-turbo' |
+'qwen-plus' | 'qwen-max' | 'yi-large' | 'yi-medium' | 'yi-medium-200k' | 'yi-spark' | 'yi-large-rag' | 'yi-large-turbo' |
+'yi-vl-plus' | 'SparkDesk-v3.5' | 'command-r' | 'command-r-plus' | 'command-r-plus-online' | 'moonshot-v1-8k' |
+'moonshot-v1-32k' | 'moonshot-v1-128k' | 'concise' | 'detail' | 'research' | 'step-1-32k' | 'step-1-200k' | 'deepseek-chat' |
+'deepseek-coder'
 
 export const CHATMODELS: CHATMODEL[] = [
   'gpt-3.5-turbo', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo-0125', 'gpt-3.5-turbo-1106', 'gpt-4', 'gpt-4-32k',
   'gpt-4-turbo-preview', 'gpt-4-0125-preview', 'gpt-4-0613', 'gpt-4-32k-0613', 'gpt-4-all', 'gpt-4-gizmo',
-  'gpt-4-turbo', 'gpt-4-turbo-2024-04-09', 'gpt-4o', 'gpt-4o-2024-05-13', 'gpt-4o-all', 'dall-e-2', 'dall-e-3',
-  'gemini-pro', 'gemini-1.5-pro', 'claude-2', 'claude-3-sonnet', 'claude-3.5-sonnet', 'claude-3-opus', 'claude-3-haiku',
-  'glm-4-air', 'glm-4-airx', 'glm-4', 'glm-4-flash', 'glm-4-0520', 'qwen-turbo', 'qwen-plus', 'qwen-max', 'yi-large',
-  'yi-medium', 'yi-medium-200k', 'yi-vl-plus', 'yi-spark', 'yi-large-rag', 'yi-large-turbo', 'SparkDesk-v3.5', 'command-r',
-  'command-r-plus', 'command-r-plus-online', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'concise', 'detail',
-  'research', 'step-1-32k', 'step-1-200k', 'deepseek-chat', 'deepseek-coder',
+  'gpt-4-turbo', 'gpt-4-turbo-2024-04-09', 'gpt-4o', 'gpt-4o-2024-08-06', 'gpt-4o-all', 'o1-preview', 'o1-preview-2024-09-12',
+  'o1-mini', 'o1-mini-2024-09-12', 'dall-e-2', 'dall-e-3', 'gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-pro-exp-0827', 'claude-2', 'claude-3-sonnet', 'claude-3.5-sonnet', 'claude-3-opus', 'claude-3-haiku',
+  'glm-4-air', 'glm-4-airx', 'glm-4', 'glm-4-flash', 'glm-4-0520', 'glm-4-plus', 'qwen-turbo', 'qwen-plus', 'qwen-max',
+  'yi-large', 'yi-medium', 'yi-medium-200k', 'yi-vl-plus', 'yi-spark', 'yi-large-rag', 'yi-large-turbo', 'SparkDesk-v3.5',
+  'command-r', 'command-r-plus', 'command-r-plus-online', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'concise',
+  'detail', 'research', 'step-1-32k', 'step-1-200k', 'deepseek-chat', 'deepseek-coder',
 ]
 
 export const chatModelOptions = [
   'gpt-3.5-turbo', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo-0125', 'gpt-3.5-turbo-1106', 'gpt-4', 'gpt-4-32k',
   'gpt-4-turbo-preview', 'gpt-4-0125-preview', 'gpt-4-0613', 'gpt-4-32k-0613', 'gpt-4-all', 'gpt-4-gizmo',
-  'gpt-4-turbo', 'gpt-4-turbo-2024-04-09', 'gpt-4o', 'gpt-4o-2024-05-13', 'gpt-4o-all', 'dall-e-2', 'dall-e-3',
-  'gemini-pro', 'gemini-1.5-pro', 'claude-2', 'claude-3-sonnet', 'claude-3.5-sonnet', 'claude-3-opus', 'claude-3-haiku',
-  'glm-4-air', 'glm-4-airx', 'glm-4', 'glm-4-flash', 'glm-4-0520', 'qwen-turbo', 'qwen-plus', 'qwen-max', 'yi-large',
-  'yi-medium', 'yi-medium-200k', 'yi-vl-plus', 'yi-spark', 'yi-large-rag', 'yi-large-turbo', 'SparkDesk-v3.5', 'command-r',
-  'command-r-plus', 'command-r-plus-online', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'concise', 'detail',
-  'research', 'step-1-32k', 'step-1-200k', 'deepseek-chat', 'deepseek-coder',
+  'gpt-4-turbo', 'gpt-4-turbo-2024-04-09', 'gpt-4o', 'gpt-4o-2024-08-06', 'gpt-4o-all', 'o1-preview', 'o1-preview-2024-09-12',
+  'o1-mini', 'o1-mini-2024-09-12', 'dall-e-2', 'dall-e-3', 'gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-pro-exp-0827', 'claude-2', 'claude-3-sonnet', 'claude-3.5-sonnet', 'claude-3-opus', 'claude-3-haiku',
+  'glm-4-air', 'glm-4-airx', 'glm-4', 'glm-4-flash', 'glm-4-0520', 'glm-4-plus', 'qwen-turbo', 'qwen-plus', 'qwen-max',
+  'yi-large', 'yi-medium', 'yi-medium-200k', 'yi-vl-plus', 'yi-spark', 'yi-large-rag', 'yi-large-turbo', 'SparkDesk-v3.5',
+  'command-r', 'command-r-plus', 'command-r-plus-online', 'moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'concise',
+  'detail', 'research', 'step-1-32k', 'step-1-200k', 'deepseek-chat', 'deepseek-coder',
 ].map((model: string) => {
   const label = model
   return {
