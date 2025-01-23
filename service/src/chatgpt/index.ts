@@ -1,7 +1,6 @@
 import * as dotenv from 'dotenv'
 import 'isomorphic-fetch'
 import type { ChatGPTAPIOptions, ChatMessage, SendMessageOptions } from 'chatgpt-mg'
-import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt-mg'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
@@ -15,9 +14,10 @@ import { textAuditServices } from '../utils/textAudit'
 import { getCacheApiKeys, getCacheConfig, getOriginConfig } from '../storage/config'
 import { sendResponse } from '../utils'
 import { hasAnyRole, isNotEmptyString } from '../utils/is'
-import type { ChatContext, ChatGPTUnofficialProxyAPIOptions, JWT, ModelConfig } from '../types'
-import { getChatByMessageId, updateRoomAccountId } from '../storage/mongo'
+import type { ChatContext, ChatGPTUnofficialProxyAPIOptions, ModelConfig } from '../types'
+import { getChatByMessageId, updateRoomAccountId } from '../storage/sqlite'
 import type { RequestOptions } from './types'
+import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt-mg'
 
 const { HttpsProxyAgent } = httpsProxyAgent
 
@@ -59,7 +59,7 @@ export async function initApi(key: KeyConfig, model: string) {
     if (model.toLowerCase().includes('-8k')) {
       options.maxModelTokens = 8192
       options.maxResponseTokens = 1024
-    }
+  }
     else if (model.toLowerCase().includes('-16k')) {
       // If it's a '16k' model, set the maxModelTokens to 16384 and maxResponseTokens to 4096
       options.maxModelTokens = 16384
@@ -204,7 +204,7 @@ async function chatReplyProcess(options: RequestOptions) {
   const chatModel = options.room.chatModel ?? 'gpt-3.5-turbo'
   let model = chatModel as string
   const key = await getRandomApiKey(options.user, chatModel, options.room.accountId)
-  const userId = options.user._id.toString()
+  const userId = options.user.id.toString()
   const messageId = options.messageId
   if (key == null || key === undefined)
     throw new Error('没有可用的配置。请再试一次 | No available configuration. Please try again.')
@@ -330,14 +330,6 @@ async function containsSensitiveWords(audit: AuditConfig, text: string): Promise
     return await auditService.containsSensitiveWords(text)
   }
   return false
-}
-
-async function fetchAccessTokenExpiredTime() {
-  const config = await getCacheConfig()
-  const jwt = jwt_decode(config.accessToken) as JWT
-  if (jwt.exp)
-    return dayjs.unix(jwt.exp).format('YYYY-MM-DD HH:mm:ss')
-  return '-'
 }
 
 let cachedBalance: number | undefined
@@ -471,7 +463,7 @@ async function setupProxy(options: ChatGPTAPIOptions | ChatGPTUnofficialProxyAPI
   }
 }
 
-async function getMessageById(id: string): Promise<ChatMessage | undefined> {
+async function getMessageById(id: string): Promise<ChatMessage> {
   const isPrompt = id.startsWith('prompt_')
   const chatInfo = await getChatByMessageId(isPrompt ? id.substring(7) : id)
 
@@ -487,7 +479,7 @@ async function getMessageById(id: string): Promise<ChatMessage | undefined> {
     }
     else {
       if (isPrompt) { // prompt
-        return {
+    return {
           id,
           conversationId: chatInfo.options.conversationId,
           parentMessageId,
@@ -500,11 +492,11 @@ async function getMessageById(id: string): Promise<ChatMessage | undefined> {
           id,
           conversationId: chatInfo.options.conversationId,
           parentMessageId,
-          role: 'assistant',
+      role: 'assistant',
           text: chatInfo.response,
-        }
       }
     }
+  }
   }
   else { return undefined }
 }
@@ -541,7 +533,7 @@ async function getRandomApiKey(user: UserInfo, chatModel: CHATMODEL, accountId?:
 function getAccountId(accessToken: string): string {
   try {
     const jwt = jwt_decode(accessToken) as JWT
-    return jwt['https://api.openai.com/auth'].user_id
+    return jwt['https://api.openai.com/auth'].userid
   }
   catch (error) {
     return ''

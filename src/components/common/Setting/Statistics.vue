@@ -20,7 +20,7 @@ const tempOptions = ref<UserOption[]>([])
 
 const userOptions = computed(() => {
   return tempOptions.value.map((user: UserOption) => ({
-    value: user._id || '',
+    value: user.id || '',
     key: user.email || '',
     label: user.remark ? user.remark : user.email,
   }))
@@ -92,7 +92,7 @@ async function fetchStatistics() {
       summary.value.completionTokens = data.completionTokens
       summary.value.totalTokens = data.totalTokens
 
-      chartData.labels = data.chartData.map((item: any) => item._id)
+      chartData.labels = data.chartData.map((item: any) => item.id)
       chartData.datasets[0].data = data.chartData.map((item: any) => item.promptTokens)
       chartData.datasets[1].data = data.chartData.map((item: any) => item.completionTokens)
 

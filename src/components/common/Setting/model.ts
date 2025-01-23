@@ -94,7 +94,7 @@ export enum UserRole {
 }
 
 export class KeyConfig {
-  _id?: string
+  id?: string
   key: string
   apiBaseUrl: string
   keyModel: APIMODEL
@@ -132,7 +132,7 @@ export const userRoleOptions = Object.values(UserRole).filter(d => isNaN(Number(
 })
 
 export class UserInfo {
-  _id?: string
+  id?: string
   email?: string
   password?: string
   roles: UserRole[]
@@ -143,7 +143,7 @@ export class UserInfo {
 }
 
 export class UserOption {
-  _id?: string
+  id?: string
   name?: string
   email?: string
   roles?: UserRole[]

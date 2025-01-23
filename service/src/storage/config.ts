@@ -1,9 +1,8 @@
-import { ObjectId } from 'mongodb'
 import * as dotenv from 'dotenv'
 import type { TextAuditServiceProvider } from 'src/utils/textAudit'
 import { isNotEmptyString, isTextAuditServiceProvider } from '../utils/is'
 import { AuditConfig, CHATMODELS, Config, KeyConfig, MailConfig, SiteConfig, TextAudioType, UserRole } from './model'
-import { getConfig, getKeys, upsertKey } from './mongo'
+import { getConfig, getKeys, upsertKey } from './sqlite'
 
 dotenv.config()
 
@@ -26,7 +25,7 @@ export async function getCacheConfig(): Promise<Config> {
 export async function getOriginConfig() {
   let config = await getConfig()
   if (config == null) {
-    config = new Config(new ObjectId(),
+    config = new Config(
       !isNaN(+process.env.TIMEOUT_MS) ? +process.env.TIMEOUT_MS : 600 * 1000,
       process.env.OPENAI_API_KEY,
       process.env.OPENAI_API_DISABLE_DEBUG === 'true',
@@ -114,7 +113,7 @@ function getTextAuditServiceOptionFromString(value: string): TextAudioType {
 
 export function clearConfigCache() {
   cacheExpiration = 0
-  cachedConfig = null
+  cachedConfig = undefined
 }
 
 let apiKeysCachedConfig: KeyConfig[] | undefined

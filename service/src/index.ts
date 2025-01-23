@@ -1,7 +1,6 @@
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import * as dotenv from 'dotenv'
-import { ObjectId } from 'mongodb'
 import { textTokens } from 'gpt-token'
 import type { RequestProps } from './types'
 import type { ChatMessage } from './chatgpt'
@@ -18,19 +17,19 @@ import {
   deleteChat,
   deleteChatRoom,
   existsChatRoom,
-  getChat,
   getChatRoom,
   getChatRooms,
   getChats,
+  getChat,
   getUser,
   getUserById,
   getUserStatisticsByDay,
   getUsers,
+  updateChat,
   insertChat,
   insertChatUsage,
   renameChatRoom,
   updateApiKeyStatus,
-  updateChat,
   updateConfig,
   updateRoomChatModel,
   updateRoomPrompt,
@@ -42,12 +41,13 @@ import {
   updateUserVisitTime,
   upsertKey,
   verifyUser,
-} from './storage/mongo'
+} from './storage/sqlite'
 import { authLimiter, limiter } from './middleware/limiter'
 import { hasAnyRole, isEmail, isNotEmptyString } from './utils/is'
 import { sendNoticeMail, sendResetPasswordMail, sendTestMail, sendVerifyMail, sendVerifyMailAdmin } from './utils/mail'
 import { checkUserResetPassword, checkUserVerify, checkUserVerifyAdmin, getUserResetPasswordUrl, getUserVerifyUrl, getUserVerifyUrlAdmin, md5 } from './utils/security'
 import { rootAuth } from './middleware/rootAuth'
+import type { AuthJwtPayload } from './types'
 
 dotenv.config()
 
@@ -412,7 +412,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       temperature,
       top_p,
       user,
-      messageId: message._id.toString(),
+      messageId: message.id.toString(),
       tryCount: 0,
       room,
     })
@@ -450,7 +450,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       if (regenerate && message.options.messageId) {
         const previousResponse = message.previousResponse || []
         previousResponse.push({ response: message.response, options: message.options })
-        await updateChat(message._id as unknown as string,
+        await updateChat(message.id as unknown as string,
           result.data.text,
           result.data.id,
           result.data.conversationId,
@@ -458,7 +458,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
           previousResponse as [])
       }
       else {
-        await updateChat(message._id as unknown as string,
+        await updateChat(message.id as unknown as string,
           result.data.text,
           result.data.id,
           result.data.conversationId,
@@ -466,9 +466,9 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       }
 
       if (result.data.detail?.usage) {
-        await insertChatUsage(new ObjectId(req.headers.userId),
+        await insertChatUsage(req.headers.userId,
           roomId,
-          message._id,
+          message.id,
           result.data.id,
           result.data.detail?.usage as UsageResponse)
       }
@@ -587,7 +587,7 @@ router.post('/session', async (req, res) => {
         name: user.name,
         description: user.description,
         avatar: user.avatar,
-        userId: user._id.toString(),
+        userId: user.id.toString(),
         root: user.roles.includes(UserRole.Admin),
         roles: user.roles,
       }
@@ -662,9 +662,9 @@ router.post('/user-login', authLimiter, async (req, res) => {
       name: user.name ? user.name : user.email,
       avatar: user.avatar,
       description: user.description,
-      userId: user._id,
+      userId: user.id.toString(),
       root: user.roles.includes(UserRole.Admin),
-    }, config.siteConfig.loginSalt.trim())
+    } as AuthJwtPayload, config.siteConfig.loginSalt.trim())
     res.send({ status: 'Success', message: '登录成功 | Login successfully', data: { token } })
   }
   catch (error) {
@@ -700,7 +700,7 @@ router.post('/user-reset-password', authLimiter, async (req, res) => {
     if (user == null || user.status !== Status.Normal)
       throw new Error('账户状态异常 | Account status abnormal.')
 
-    updateUserPassword(user._id.toString(), md5(password))
+    updateUserPassword(user.id.toString(), md5(password))
 
     res.send({ status: 'Success', message: '密码重置成功 | Password reset successful', data: null })
   }
@@ -742,7 +742,7 @@ router.get('/userOptions', rootAuth, async (req, res) => {
     const users = await getUsers(0, -1)
 
     const data: UserOption[] = users.users.map((user: UserInfo) => ({
-      _id: user._id.toString(),
+      id: user.id,
       email: user.email,
       name: user.name,
       roles: user.roles,
@@ -779,7 +779,7 @@ router.post('/user-edit', rootAuth, async (req, res) => {
     else {
       const newPassword = md5(password)
       const user = await createUser(email, newPassword, roles, remark)
-      await updateUserStatus(user._id.toString(), Status.Normal)
+      await updateUserStatus(user.id.toString(), Status.Normal)
     }
     res.send({ status: 'Success', message: '更新成功 | Update successfully' })
   }
@@ -969,8 +969,8 @@ router.post('/setting-key-status', rootAuth, async (req, res) => {
 router.post('/setting-key-upsert', rootAuth, async (req, res) => {
   try {
     const keyConfig = req.body as KeyConfig
-    if (keyConfig._id !== undefined)
-      keyConfig._id = new ObjectId(keyConfig._id)
+    if (keyConfig.id !== undefined)
+      keyConfig.id = keyConfig.id
     await upsertKey(keyConfig)
     clearApiKeyCache()
     res.send({ status: 'Success', message: '成功 | Successfully' })
@@ -990,7 +990,7 @@ router.post('/statistics/by-day', auth, async (req, res) => {
     else
       userId = userid
 
-    const data = await getUserStatisticsByDay(new ObjectId(userId), start, end)
+    const data = await getUserStatisticsByDay(userId, start, end)
     res.send({ status: 'Success', message: '', data })
   }
   catch (error) {

@@ -1,4 +1,3 @@
-import type { ObjectId } from 'mongodb'
 import type { TextAuditServiceOptions, TextAuditServiceProvider } from 'src/utils/textAudit'
 
 export enum Status {
@@ -24,7 +23,7 @@ export enum UserRole {
 }
 
 export class UserInfo {
-  _id: ObjectId
+  id?: number
   name: string
   email: string
   password: string
@@ -43,16 +42,16 @@ export class UserInfo {
     this.password = password
     this.status = Status.PreVerify
     this.createTime = new Date().toLocaleString()
-    this.verifyTime = null
-    this.visitTime = null
+    this.verifyTime = undefined
+    this.visitTime = undefined
     this.updateTime = new Date().toLocaleString()
     this.roles = [UserRole.User]
-    this.remark = null
+    this.remark = undefined
   }
 }
 
 export class UserOption {
-  _id?: string
+  id?: number
   name?: string
   email?: string
   roles?: UserRole[]
@@ -107,49 +106,53 @@ export const chatModelOptions = [
 })
 
 export class ChatRoom {
-  _id: ObjectId
+  id?: number
   roomId: number
   userId: string
   title: string
-  prompt: string
+  prompt: string = ''
   usingContext: boolean
   status: Status = Status.Normal
-  // only access token used
   accountId?: string
   chatModel: CHATMODEL
   constructor(userId: string, title: string, roomId: number) {
     this.userId = userId
     this.title = title
-    this.prompt = undefined
     this.roomId = roomId
     this.usingContext = true
-    this.accountId = null
+    this.accountId = undefined
     this.chatModel = 'gpt-3.5-turbo'
   }
 }
 
 export class ChatOptions {
-  parentMessageId?: string
-  messageId?: string
-  conversationId?: string
-  prompt_tokens?: number
-  completion_tokens?: number
-  total_tokens?: number
-  estimated?: boolean
+  parentMessageId: string | undefined = undefined
+  messageId: string | undefined = undefined
+  conversationId: string | undefined = undefined
+  prompt_tokens: number | undefined = undefined
+  completion_tokens: number | undefined = undefined
+  total_tokens: number | undefined = undefined
+  estimated: boolean | undefined = undefined
+
   constructor(parentMessageId?: string, messageId?: string, conversationId?: string) {
-    this.parentMessageId = parentMessageId
-    this.messageId = messageId
-    this.conversationId = conversationId
+    if (parentMessageId) this.parentMessageId = parentMessageId
+    if (messageId) this.messageId = messageId
+    if (conversationId) this.conversationId = conversationId
   }
 }
 
 export class previousResponse {
-  response: string
-  options: ChatOptions
+  response: string = ''
+  options: ChatOptions = new ChatOptions()
+
+  constructor(response: string, options: ChatOptions) {
+    this.response = response
+    this.options = options
+  }
 }
 
 export class ChatInfo {
-  _id: ObjectId
+  id?: number
   roomId: number
   uuid: number
   dateTime: number
@@ -168,24 +171,32 @@ export class ChatInfo {
 }
 
 export class UsageResponse {
-  prompt_tokens: number
-  completion_tokens: number
-  total_tokens: number
-  estimated: boolean
+  prompt_tokens: number = 0
+  completion_tokens: number = 0
+  total_tokens: number = 0
+  estimated: boolean = false
+
+  constructor(prompt_tokens?: number, completion_tokens?: number, total_tokens?: number, estimated?: boolean) {
+    if (prompt_tokens !== undefined) this.prompt_tokens = prompt_tokens
+    if (completion_tokens !== undefined) this.completion_tokens = completion_tokens
+    if (total_tokens !== undefined) this.total_tokens = total_tokens
+    if (estimated !== undefined) this.estimated = estimated
+  }
 }
 
 export class ChatUsage {
-  _id: ObjectId
-  userId: ObjectId
+  id?: number
+  userId: string
   roomId: number
-  chatId: ObjectId
+  chatId: number
   messageId: string
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-  estimated: boolean
+  promptTokens: number = 0
+  completionTokens: number = 0
+  totalTokens: number = 0
+  estimated: boolean = false
   dateTime: number
-  constructor(userId: ObjectId, roomId: number, chatId: ObjectId, messageId: string, usage: UsageResponse) {
+
+  constructor(userId: string, roomId: number, chatId: number, messageId: string, usage: UsageResponse) {
     this.userId = userId
     this.roomId = roomId
     this.chatId = chatId
@@ -201,8 +212,8 @@ export class ChatUsage {
 }
 
 export class Config {
+  id?: number
   constructor(
-    public _id: ObjectId,
     public timeoutMs: number,
     public apiKey?: string,
     public apiDisableDebug?: boolean,
@@ -260,7 +271,7 @@ export enum TextAudioType {
 }
 
 export class KeyConfig {
-  _id: ObjectId
+  id?: number
   key: string
   apiBaseUrl: string
   keyModel: APIMODEL

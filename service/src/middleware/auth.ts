@@ -1,15 +1,16 @@
 import jwt from 'jsonwebtoken'
 import type { Request } from 'express'
 import { getCacheConfig } from '../storage/config'
-import { getUserById } from '../storage/mongo'
+import { getUserById } from '../storage/sqlite'
 import { Status } from '../storage/model'
+import type { AuthJwtPayload } from '../types'
 
 const auth = async (req, res, next) => {
   const config = await getCacheConfig()
   if (config.siteConfig.loginEnabled) {
     try {
       const token = req.header('Authorization').replace('Bearer ', '')
-      const info = jwt.verify(token, config.siteConfig.loginSalt.trim())
+      const info = jwt.verify(token, config.siteConfig.loginSalt.trim()) as AuthJwtPayload
       req.headers.userId = info.userId
       const user = await getUserById(info.userId)
       if (user == null || user.status !== Status.Normal)
@@ -32,7 +33,7 @@ async function getUserId(req: Request): Promise<string | undefined> {
   try {
     const token = req.header('Authorization').replace('Bearer ', '')
     const config = await getCacheConfig()
-    const info = jwt.verify(token, config.siteConfig.loginSalt.trim())
+    const info = jwt.verify(token, config.siteConfig.loginSalt.trim()) as AuthJwtPayload
     return info.userId
   }
   catch (error) {

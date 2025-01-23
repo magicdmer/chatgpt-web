@@ -1,4 +1,5 @@
 import type { FetchFn } from 'chatgpt-mg'
+import type { JwtPayload } from 'jsonwebtoken'
 
 export interface RequestProps {
   roomId: number
@@ -39,19 +40,10 @@ export interface ModelConfig {
 
 export type APIMODEL = 'ChatGPTAPI' | 'ChatGPTUnofficialProxyAPI' | undefined
 
-export interface JWT {
-  'https://api.openai.com/profile': {
-    'email': string
-    'email_verified': boolean
-  }
-  'https://api.openai.com/auth': {
-    'user_id': string
-  }
-  'iss': string
-  'sub': string
-  'aud': []
-  'iat': number
-  'exp': number
-  'azp': string
-  'scope': string
+export interface AuthJwtPayload extends JwtPayload {
+  name: string
+  avatar: string
+  description: string
+  userId: string
+  root: boolean
 }

@@ -73,7 +73,7 @@ const columns = [
   },
   {
     title: 'Action',
-    key: '_id',
+    key: 'id',
     width: 220,
     render(row: any) {
       const actions: any[] = []
@@ -85,7 +85,7 @@ const columns = [
           style: {
             marginRight: '6px',
           },
-          onClick: () => handleUpdateUserStatus(row._id, Status.Deleted),
+          onClick: () => handleUpdateUserStatus(row.id, Status.Deleted),
         },
         { default: () => t('common.delete') },
       ))
@@ -109,7 +109,7 @@ const columns = [
           {
             size: 'small',
             type: 'info',
-            onClick: () => handleUpdateUserStatus(row._id, Status.Normal),
+            onClick: () => handleUpdateUserStatus(row.id, Status.Normal),
           },
           { default: () => t('chat.verifiedUser') },
         ))
@@ -122,7 +122,7 @@ const columns = [
             {
               size: 'small',
               type: 'info',
-              onClick: () => handleUpdateUserStatus(row._id, Status.Normal),
+              onClick: () => handleUpdateUserStatus(row.id, Status.Normal),
             },
             { default: () => buttonText.value },
           ))
@@ -134,7 +134,7 @@ const columns = [
             {
               size: 'small',
               type: 'info',
-              onClick: () => handleUpdateUserStatus(row._id, Status.Disabled),
+              onClick: () => handleUpdateUserStatus(row.id, Status.Disabled),
             },
             { default: () => buttonText.value },
           ))
@@ -258,7 +258,7 @@ onMounted(async () => {
           ref="table"
           remote
           :loading="loading"
-          :row-key="(rowData) => rowData._id"
+          :row-key="(rowData) => rowData.id"
           :columns="columns"
           :data="users"
           :pagination="pagination"
@@ -279,7 +279,7 @@ onMounted(async () => {
           <div class="flex-1">
             <NInput
               v-model:value="userRef.email"
-              :disabled="userRef._id !== undefined" placeholder="email"
+              :disabled="userRef.id !== undefined" placeholder="email"
             />
           </div>
         </div>

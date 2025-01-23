@@ -59,7 +59,7 @@ export class BaiduTextAuditService implements TextAuditService {
       if (this.accessToken && Math.floor(new Date().getTime() / 1000) <= this.expiredTime)
         return true
 
-      const url = `https://aip.baidubce.com/oauth/2.0/token?client_id=${this.options.apiKey}&client_secret=${this.options.apiSecret}&grant_type=client_credentials`
+      const url = `https://aip.baidubce.com/oauth/2.0/token?clientid=${this.options.apiKey}&client_secret=${this.options.apiSecret}&grant_type=client_credentials`
       let headers: {
         'Content-Type': 'application/json'
         'Accept': 'application/json'

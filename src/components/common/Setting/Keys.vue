@@ -107,7 +107,7 @@ const columns = [
   },
   {
     title: 'Action',
-    key: '_id',
+    key: 'id',
     width: 220,
     render(row: KeyConfig) {
       const actions: any[] = []
@@ -119,7 +119,7 @@ const columns = [
             marginRight: '6px',
           },
           type: 'error',
-          onClick: () => handleUpdateApiKeyStatus(row._id as string, Status.Deleted),
+          onClick: () => handleUpdateApiKeyStatus(row.id as string, Status.Deleted),
         },
         { default: () => t('common.delete') },
       ))
@@ -238,7 +238,7 @@ onMounted(async () => {
           ref="table"
           remote
           :loading="loading"
-          :row-key="(rowData) => rowData._id"
+          :row-key="(rowData) => rowData.id"
           :columns="columns"
           :data="keys"
           :pagination="pagination"
