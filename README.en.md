@@ -244,8 +244,6 @@ services:
       SITE_TITLE: ChatGpt Web
       # access salt，optional Allow login if not empty.
       AUTH_SECRET_KEY: xxx
-      # mongodb's connection string
-      MONGODB_URL: 'mongodb://chatgpt:xxxx@database:27017'
       # After register enabled, Salt for password encryption
       PASSWORD_MD5_SALT: xxx
       # After register enabled, super administrator
@@ -253,26 +251,6 @@ services:
       # Allow anyone register, Must be turned on, otherwise administrators cannot register, can be turned off later.
       REGISTER_ENABLED: true
       # More configurations, register an administrator after running and set it in the administrator page.
-    links:
-      - database
-
-  database:
-    image: mongo
-    container_name: chatgptweb-database
-    restart: unless-stopped
-    ports:
-      - '27017:27017'
-    expose:
-      - '27017'
-    volumes:
-      - mongodb:/data/db
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: chatgpt
-      MONGO_INITDB_ROOT_PASSWORD: xxxx
-      MONGO_INITDB_DATABASE: chatgpt
-
-volumes:
-  mongodb: {}
 ```
 The `OPENAI_API_BASE_URL` is optional and only used when setting the `OPENAI_API_KEY`.
 

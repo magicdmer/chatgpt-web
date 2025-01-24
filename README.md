@@ -246,12 +246,10 @@ services:
       TZ: Asia/Shanghai
       # 每小时最大请求次数，可选，默认无限
       MAX_REQUEST_PER_HOUR: 0
-      # 访问jwt加密参数，可选 不为空则允许登录 同时需要设置 MONGODB_URL
+      # 访问jwt加密参数，可选 不为空则允许登录 同时需要设置
       AUTH_SECRET_KEY: xxx
       # 网站名称
       SITE_TITLE: ChatGpt Web
-      # mongodb 的连接字符串
-      MONGODB_URL: 'mongodb://chatgpt:xxxx@database:27017'
       # 开启注册之后 密码加密的盐
       PASSWORD_MD5_SALT: xxx
       # 开启注册之后 超级管理邮箱
@@ -259,26 +257,6 @@ services:
       # 网站是否开启注册 必须开启, 否则管理员都没法注册, 可后续关闭
       REGISTER_ENABLED: true
       # 更多配置, 在运行后, 注册管理员, 在管理员页面中设置
-    links:
-      - database
-
-  database:
-    image: mongo
-    container_name: chatgptweb-database
-    restart: unless-stopped
-    ports:
-      - '27017:27017'
-    expose:
-      - '27017'
-    volumes:
-      - mongodb:/data/db
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: chatgpt
-      MONGO_INITDB_ROOT_PASSWORD: xxxx
-      MONGO_INITDB_DATABASE: chatgpt
-
-volumes:
-  mongodb: {}
 ```
 - `OPENAI_API_BASE_URL`  可选，设置 `OPENAI_API_KEY` 时可用
 
