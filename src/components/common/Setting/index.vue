@@ -11,7 +11,7 @@ import Audit from './Audit.vue'
 import User from './User.vue'
 import Key from './Keys.vue'
 import { SvgIcon } from '@/components/common'
-import { useAuthStore, useUserStore } from '@/store'
+import { useUserStore } from '@/store'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 
 const props = defineProps<Props>()
@@ -19,10 +19,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emit>()
 
 const userStore = useUserStore()
-const authStore = useAuthStore()
 const { isMobile } = useBasicLayout()
-
-const isChatGPTAPI = computed<boolean>(() => !!authStore.isChatGPTAPI)
 
 interface Props {
   visible: boolean
@@ -57,7 +54,7 @@ const show = computed({
             <General />
           </div>
         </NTabPane>
-        <NTabPane v-if="isChatGPTAPI" name="Advanced" tab="Advanced">
+        <NTabPane name="Advanced" tab="Advanced">
           <template #tab>
             <SvgIcon class="text-lg" icon="ri:equalizer-line" />
             <span class="ml-2">{{ $t('setting.advanced') }}</span>

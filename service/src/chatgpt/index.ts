@@ -14,10 +14,10 @@ import { textAuditServices } from '../utils/textAudit'
 import { getCacheApiKeys, getCacheConfig, getOriginConfig } from '../storage/config'
 import { sendResponse } from '../utils'
 import { hasAnyRole, isNotEmptyString } from '../utils/is'
-import type { ChatContext, ChatGPTUnofficialProxyAPIOptions, ModelConfig } from '../types'
+import type { ChatContext, ModelConfig } from '../types'
 import { getChatByMessageId, updateRoomAccountId } from '../storage/sqlite'
 import type { RequestOptions } from './types'
-import { ChatGPTAPI, ChatGPTUnofficialProxyAPI } from 'chatgpt-mg'
+import { ChatGPTAPI } from 'chatgpt-mg'
 
 const { HttpsProxyAgent } = httpsProxyAgent
 
@@ -39,127 +39,112 @@ export async function initApi(key: KeyConfig, model: string) {
   // More Info: https://github.com/transitive-bullshit/chatgpt-api
 
   const config = await getCacheConfig()
+  const OPENAI_API_BASE_URL = config.apiBaseUrl
 
-  if (key.keyModel === 'ChatGPTAPI') {
-    const OPENAI_API_BASE_URL = config.apiBaseUrl
-
-    const options: ChatGPTAPIOptions = {
-      apiKey: key.key,
-      completionParams: { model },
-      debug: !config.apiDisableDebug,
-      messageStore: undefined,
-      getMessageById,
-    }
-
-    // Set the token limits based on the model's type. This is because different models have different token limits.
-    // The token limit includes the token count from both the message array sent and the model response.
-    // 'gpt-35-turbo' has a limit of 4096 tokens, 'gpt-4' and 'gpt-4-32k' have limits of 8192 and 32768 tokens respectively.
-
-    // Check if the model type includes '16k'
-    if (model.toLowerCase().includes('-8k')) {
-      options.maxModelTokens = 8192
-      options.maxResponseTokens = 1024
+  const options: ChatGPTAPIOptions = {
+    apiKey: key.key,
+    completionParams: { model },
+    debug: !config.apiDisableDebug,
+    messageStore: undefined,
+    getMessageById,
   }
-    else if (model.toLowerCase().includes('-16k')) {
-      // If it's a '16k' model, set the maxModelTokens to 16384 and maxResponseTokens to 4096
-      options.maxModelTokens = 16384
-      options.maxResponseTokens = 2048
-    }
-    else if (model.toLowerCase().includes('-32k')) {
-      // If it's a '32k' model, set the maxModelTokens to 32768 and maxResponseTokens to 8192
-      options.maxModelTokens = 32768
-      options.maxResponseTokens = 2048
-    }
-    else if (model.toLowerCase().includes('-128k')) {
-      options.maxModelTokens = 131072
-      options.maxResponseTokens = 4096
-    }
-    else if (model.toLowerCase().includes('-200k')) {
-      options.maxModelTokens = 204800
-      options.maxResponseTokens = 4096
-    }
-    else if (model.toLowerCase().includes('gpt-4-all')) {
-      // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
-      options.maxModelTokens = 32768
-      options.maxResponseTokens = 2048
-    }
-    else if (model.toLowerCase().includes('gpt-4-gizmo')) {
-      // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
-      options.maxModelTokens = 32768
-      options.maxResponseTokens = 2048
-    }
-    else if (model.toLowerCase().includes('gpt-4')) {
-      // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
-      options.maxModelTokens = 8192
-      options.maxResponseTokens = 2048
-    }
-    else if (model.toLowerCase().includes('gemini-1.5-pro')) {
-      options.maxModelTokens = 102400
-      options.maxResponseTokens = 2048
-    }
-    else if (model.toLowerCase().includes('gemini-pro')) {
-      options.maxModelTokens = 30720
-      options.maxResponseTokens = 2048
-    }
-    else if (model.toLowerCase().includes('claude')) {
-      options.maxModelTokens = 204800
-      options.maxResponseTokens = 4096
-    }
-    else if (model.toLowerCase().includes('glm')) {
-      options.maxModelTokens = 8192
-      options.maxResponseTokens = 1024
-    }
-    else if (model.toLowerCase().includes('qwen-turbo')) {
-      options.maxModelTokens = 8192
-      options.maxResponseTokens = 1024
-    }
-    else if (model.toLowerCase().includes('qwen-plus')) {
-      options.maxModelTokens = 30720
-      options.maxResponseTokens = 2048
-    }
-    else if (model.toLowerCase().includes('qwen-max')) {
-      options.maxModelTokens = 6144
-      options.maxResponseTokens = 1024
-    }
-    else if (model.toLowerCase().includes('SparkDesk')) {
-      options.maxModelTokens = 8192
-      options.maxResponseTokens = 1024
-    }
-    else if (model.toLowerCase().includes('command-r')) {
-      options.maxModelTokens = 131072
-      options.maxResponseTokens = 2048
-    }
-    else if (model.toLowerCase().includes('deepseek')) {
-      options.maxModelTokens = 32768
-      options.maxResponseTokens = 2048
-    }
-    else {
-      // If none of the above, use the default values, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
-      options.maxModelTokens = 8192
-      options.maxResponseTokens = 1024
-    }
 
-    if (key.apiBaseUrl.length !== 0)
-      options.apiBaseUrl = `${key.apiBaseUrl}/v1`
-    else if (isNotEmptyString(OPENAI_API_BASE_URL))
-      options.apiBaseUrl = '$(OPENAI_API_BASE_URL)/v1'
+  // Set the token limits based on the model's type. This is because different models have different token limits.
+  // The token limit includes the token count from both the message array sent and the model response.
+  // 'gpt-35-turbo' has a limit of 4096 tokens, 'gpt-4' and 'gpt-4-32k' have limits of 8192 and 32768 tokens respectively.
 
-    await setupProxy(options)
-
-    return new ChatGPTAPI({ ...options })
+  // Check if the model type includes '16k'
+  if (model.toLowerCase().includes('-8k')) {
+    options.maxModelTokens = 8192
+    options.maxResponseTokens = 1024
+  }
+  else if (model.toLowerCase().includes('-16k')) {
+    // If it's a '16k' model, set the maxModelTokens to 16384 and maxResponseTokens to 4096
+    options.maxModelTokens = 16384
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('-32k')) {
+    // If it's a '32k' model, set the maxModelTokens to 32768 and maxResponseTokens to 8192
+    options.maxModelTokens = 32768
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('-128k')) {
+    options.maxModelTokens = 131072
+    options.maxResponseTokens = 4096
+  }
+  else if (model.toLowerCase().includes('-200k')) {
+    options.maxModelTokens = 204800
+    options.maxResponseTokens = 4096
+  }
+  else if (model.toLowerCase().includes('gpt-4-all')) {
+    // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
+    options.maxModelTokens = 32768
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('gpt-4-gizmo')) {
+    // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
+    options.maxModelTokens = 32768
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('gpt-4')) {
+    // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
+    options.maxModelTokens = 8192
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('gemini-1.5-pro')) {
+    options.maxModelTokens = 102400
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('gemini-pro')) {
+    options.maxModelTokens = 30720
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('claude')) {
+    options.maxModelTokens = 204800
+    options.maxResponseTokens = 4096
+  }
+  else if (model.toLowerCase().includes('glm')) {
+    options.maxModelTokens = 8192
+    options.maxResponseTokens = 1024
+  }
+  else if (model.toLowerCase().includes('qwen-turbo')) {
+    options.maxModelTokens = 8192
+    options.maxResponseTokens = 1024
+  }
+  else if (model.toLowerCase().includes('qwen-plus')) {
+    options.maxModelTokens = 30720
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('qwen-max')) {
+    options.maxModelTokens = 6144
+    options.maxResponseTokens = 1024
+  }
+  else if (model.toLowerCase().includes('SparkDesk')) {
+    options.maxModelTokens = 8192
+    options.maxResponseTokens = 1024
+  }
+  else if (model.toLowerCase().includes('command-r')) {
+    options.maxModelTokens = 131072
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('deepseek')) {
+    options.maxModelTokens = 32768
+    options.maxResponseTokens = 2048
   }
   else {
-    const options: ChatGPTUnofficialProxyAPIOptions = {
-      accessToken: key.key,
-      apiReverseProxyUrl: isNotEmptyString(config.reverseProxy) ? config.reverseProxy : 'https://ai.fakeopen.com/api/conversation',
-      model,
-      debug: !config.apiDisableDebug,
-    }
-
-    await setupProxy(options)
-
-    return new ChatGPTUnofficialProxyAPI({ ...options })
+    // If none of the above, use the default values, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
+    options.maxModelTokens = 8192
+    options.maxResponseTokens = 1024
   }
+
+  if (key.apiBaseUrl.length !== 0)
+    options.apiBaseUrl = `${key.apiBaseUrl}/v1`
+  else if (isNotEmptyString(OPENAI_API_BASE_URL))
+    options.apiBaseUrl = '$(OPENAI_API_BASE_URL)/v1'
+
+  await setupProxy(options)
+
+  return new ChatGPTAPI({ ...options })
 }
 
 async function draw(url: string, key: string, prompt: string, model: string): Promise<string> {
@@ -203,20 +188,11 @@ const processThreads: { userId: string; abort: AbortController; messageId: strin
 async function chatReplyProcess(options: RequestOptions) {
   const chatModel = options.room.chatModel ?? 'gpt-3.5-turbo'
   let model = chatModel as string
-  const key = await getRandomApiKey(options.user, chatModel, options.room.accountId)
+  const key = await getRandomApiKey(options.user, chatModel)
   const userId = options.user.id.toString()
   const messageId = options.messageId
   if (key == null || key === undefined)
     throw new Error('没有可用的配置。请再试一次 | No available configuration. Please try again.')
-
-  if (key.keyModel === 'ChatGPTUnofficialProxyAPI') {
-    if (!options.room.accountId)
-      updateRoomAccountId(userId, options.room.roomId, getAccountId(key.key))
-
-    if (options.lastContext && ((options.lastContext.conversationId && !options.lastContext.parentMessageId)
-      || (!options.lastContext.conversationId && options.lastContext.parentMessageId)))
-      throw new Error('无法在一个房间同时使用 AccessToken 以及 Api,请联系管理员,或新开聊天室进行对话 | Unable to use AccessToken and Api at the same time in the same room, please contact the administrator or open a new chat room for conversation')
-  }
 
   const { message, lastContext, process, systemMessage, temperature, top_p } = options
 
@@ -240,30 +216,27 @@ async function chatReplyProcess(options: RequestOptions) {
     const timeoutMs = (await getCacheConfig()).timeoutMs
     let options: SendMessageOptions = { timeoutMs }
 
-    if (key.keyModel === 'ChatGPTAPI') {
-      if (isNotEmptyString(systemMessage)) {
-        if (systemMessage.startsWith('g-') && systemMessage.length === 11 && chatModel === 'gpt-4-all') {
-          options.gizmo_id = systemMessage
-          options.systemMessage = ''
-        }
-        else if (systemMessage.startsWith('g-') && systemMessage.length === 11 && chatModel === 'gpt-4-gizmo') {
-          model = `gpt-4-gizmo-${systemMessage}`
-          options.systemMessage = ''
-        }
-        else if (systemMessage.startsWith('g-') && systemMessage.length === 11) {
-          options.systemMessage = ''
-        }
-        else { options.systemMessage = systemMessage }
+    if (isNotEmptyString(systemMessage)) {
+      if (systemMessage.startsWith('g-') && systemMessage.length === 11 && chatModel === 'gpt-4-all') {
+        options.gizmo_id = systemMessage
+        options.systemMessage = ''
       }
-      options.completionParams = { model, temperature, top_p }
+      else if (systemMessage.startsWith('g-') && systemMessage.length === 11 && chatModel === 'gpt-4-gizmo') {
+        model = `gpt-4-gizmo-${systemMessage}`
+        options.systemMessage = ''
+      }
+      else if (systemMessage.startsWith('g-') && systemMessage.length === 11) {
+        options.systemMessage = ''
+      }
+      else { options.systemMessage = systemMessage }
     }
+    
+    options.completionParams = { model, temperature, top_p }
 
     if (lastContext != null) {
-      if (key.keyModel === 'ChatGPTAPI')
-        options.parentMessageId = lastContext.parentMessageId
-      else
-        options = { ...lastContext }
+      options.parentMessageId = lastContext.parentMessageId
     }
+
     const api = await initApi(key, model)
 
     const abort = new AbortController()
@@ -281,7 +254,6 @@ async function chatReplyProcess(options: RequestOptions) {
   catch (error: any) {
     const code = error.statusCode
     if (code === 429 && (error.message.includes('Too Many Requests') || error.message.includes('Rate limit'))) {
-      // access token  Only one message at a time
       if (options.tryCount++ < 3) {
         _lockedKeys.push({ key: key.key, lockedTime: Date.now() })
         await new Promise(resolve => setTimeout(resolve, 2000))
@@ -426,17 +398,14 @@ function formatDate(date) {
 
 async function chatConfig() {
   const config = await getOriginConfig() as ModelConfig
-  // if (config.apiModel === 'ChatGPTAPI')
-  //   config.balance = await fetchBalance()
-  // else
-  //   config.accessTokenExpiredTime = await fetchAccessTokenExpiredTime()
+  config.balance = await fetchBalance()
   return sendResponse<ModelConfig>({
     type: 'Success',
     data: config,
   })
 }
 
-async function setupProxy(options: ChatGPTAPIOptions | ChatGPTUnofficialProxyAPIOptions) {
+async function setupProxy(options: ChatGPTAPIOptions) {
   const config = await getCacheConfig()
   if (isNotEmptyString(config.socksProxy)) {
     const agent = new SocksProxyAgent({
@@ -521,23 +490,10 @@ async function randomKeyConfig(keys: KeyConfig[]): Promise<KeyConfig | null> {
   return thisKey
 }
 
-async function getRandomApiKey(user: UserInfo, chatModel: CHATMODEL, accountId?: string): Promise<KeyConfig | undefined> {
+async function getRandomApiKey(user: UserInfo, chatModel: CHATMODEL): Promise<KeyConfig | undefined> {
   let keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles))
     .filter(d => d.chatModels.includes(chatModel)).filter(d => d.status !== Status.Disabled)
-  if (accountId)
-    keys = keys.filter(d => d.keyModel === 'ChatGPTUnofficialProxyAPI' && getAccountId(d.key) === accountId)
-
   return randomKeyConfig(keys)
-}
-
-function getAccountId(accessToken: string): string {
-  try {
-    const jwt = jwt_decode(accessToken) as JWT
-    return jwt['https://api.openai.com/auth'].userid
-  }
-  catch (error) {
-    return ''
-  }
 }
 
 export type { ChatContext, ChatMessage }

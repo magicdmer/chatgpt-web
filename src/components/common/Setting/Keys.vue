@@ -2,11 +2,11 @@
 import { h, onMounted, reactive, ref } from 'vue'
 import { NButton, NDataTable, NInput, NModal, NSelect, NSpace, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
 import type { CHATMODEL } from './model'
-import { KeyConfig, Status, UserRole, apiModelOptions, userRoleOptions } from './model'
+import { KeyConfig, Status, UserRole, userRoleOptions } from './model'
 import { fetchGetKeys, fetchUpdateApiKeyStatus, fetchUpsertApiKey } from '@/api'
 import { t } from '@/locales'
-import { useAuthStore } from '@/store'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
+import { useAuthStore } from '@/store'
 
 const ms = useMessage()
 const dialog = useDialog()
@@ -16,7 +16,7 @@ const { isMobile } = useBasicLayout()
 const loading = ref(false)
 const show = ref(false)
 const handleSaving = ref(false)
-const keyConfig = ref(new KeyConfig('', '', 'ChatGPTAPI', [], [], ''))
+const keyConfig = ref(new KeyConfig('', '', [], [], ''))
 
 const keys = ref([])
 const columns = [
@@ -33,11 +33,6 @@ const columns = [
     title: 'Api Base Url',
     key: 'apiBaseUrl',
     width: 220,
-  },
-  {
-    title: 'Api Model',
-    key: 'keyModel',
-    width: 190,
   },
   {
     title: 'Chat Model',
@@ -119,7 +114,7 @@ const columns = [
             marginRight: '6px',
           },
           type: 'error',
-          onClick: () => handleUpdateApiKeyStatus(row.id as string, Status.Deleted),
+          onClick: () => handleUpdateApiKeyStatus(String(row.id), Status.Deleted),
         },
         { default: () => t('common.delete') },
       ))
@@ -211,7 +206,7 @@ async function handleUpdateKeyConfig() {
 }
 
 function handleNewKey() {
-  keyConfig.value = new KeyConfig('', '', 'ChatGPTAPI', [], [], '')
+  keyConfig.value = new KeyConfig('', '', [], [], '')
   show.value = true
 }
 
@@ -253,21 +248,6 @@ onMounted(async () => {
   <NModal v-model:show="show" :auto-focus="false" preset="card" :style="{ width: !isMobile ? '50%' : '100%' }">
     <div class="p-4 space-y-5 min-h-[200px]">
       <div class="space-y-6">
-        <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.apiModel') }}</span>
-          <div class="flex-1">
-            <NSelect
-              style="width: 100%"
-              :value="keyConfig.keyModel"
-              :options="apiModelOptions"
-              @update-value="value => keyConfig.keyModel = value"
-            />
-          </div>
-          <p v-if="!isMobile">
-            <a v-if="keyConfig.keyModel === 'ChatGPTAPI'" target="_blank" href="https://platform.openai.com/account/api-keys">Get Api Key</a>
-            <a v-else target="_blank" href="https://chat.openai.com/api/auth/session">Get Access Token</a>
-          </p>
-        </div>
         <div class="flex items-center space-x-4">
           <span class="flex-shrink-0 w-[100px]">{{ $t('setting.api') }}</span>
           <div class="flex-1">

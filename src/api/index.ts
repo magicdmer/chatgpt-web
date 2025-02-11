@@ -20,7 +20,6 @@ export function fetchChatAPIProcess<T = any>(
     onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void },
 ) {
   const settingStore = useSettingStore()
-  const authStore = useAuthStore()
 
   let data: Record<string, any> = {
     roomId: params.roomId,
@@ -30,13 +29,11 @@ export function fetchChatAPIProcess<T = any>(
     options: params.options,
   }
 
-  if (authStore.isChatGPTAPI) {
-    data = {
-      ...data,
-      systemMessage: settingStore.systemMessage,
-      temperature: settingStore.temperature,
-      top_p: settingStore.top_p,
-    }
+  data = {
+    ...data,
+    systemMessage: settingStore.systemMessage,
+    temperature: settingStore.temperature,
+    top_p: settingStore.top_p,
   }
 
   return post<T>({

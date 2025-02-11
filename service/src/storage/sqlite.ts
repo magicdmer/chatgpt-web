@@ -2,9 +2,10 @@ import { Database } from 'sqlite3'
 import * as dotenv from 'dotenv'
 import dayjs from 'dayjs'
 import { md5 } from '../utils/security'
-import { ChatInfo, ChatRoom, ChatUsage, Status, UserInfo, UserRole, Config, ChatOptions, CHATMODEL, APIMODEL, KeyConfig } from './model'
+import { ChatInfo, ChatRoom, ChatUsage, Status, UserInfo, UserRole, Config, ChatOptions, CHATMODEL, KeyConfig } from './model'
 import type { UsageResponse } from './model'
 import type { ChatMessage } from 'chatgpt-mg'
+import { existsSync, mkdirSync } from 'fs'
 
 interface ChatDBRow {
   id: number
@@ -50,10 +51,8 @@ interface ConfigDBRow {
   id: number
   timeoutMs: number
   apiKey?: string
-  apiDisableDebug?: boolean
-  accessToken?: string
   apiBaseUrl?: string
-  apiModel?: string
+  apiDisableDebug?: boolean
   reverseProxy?: string
   socksProxy?: string
   socksAuth?: string
@@ -70,7 +69,6 @@ interface KeyConfigDBRow {
   userRoles: string
   chatModels: string
   apiBaseUrl?: string
-  keyModel?: string
   remark?: string
 }
 
@@ -128,10 +126,8 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timeoutMs INTEGER NOT NULL,
     apiKey TEXT,
-    apiDisableDebug BOOLEAN,
-    accessToken TEXT,
     apiBaseUrl TEXT,
-    apiModel TEXT,
+    apiDisableDebug BOOLEAN,
     reverseProxy TEXT,
     socksProxy TEXT,
     socksAuth TEXT,
@@ -163,7 +159,6 @@ db.serialize(() => {
     userRoles TEXT,
     chatModels TEXT,
     apiBaseUrl TEXT,
-    keyModel TEXT,
     remark TEXT
   )`)
 })
@@ -342,10 +337,8 @@ export async function getConfig(): Promise<Config | null> {
   return new Config(
     row.timeoutMs,
     row.apiKey,
-    row.apiDisableDebug,
-    row.accessToken,
     row.apiBaseUrl,
-    row.apiModel as APIMODEL,
+    row.apiDisableDebug,
     row.reverseProxy,
     row.socksProxy,
     row.socksAuth,
@@ -372,18 +365,16 @@ export async function updateConfig(config: Config): Promise<Config> {
       if (row) {
         // 如果存在记录，使用 UPDATE
         sql = `UPDATE config SET 
-          timeoutMs = ?, apiKey = ?, apiDisableDebug = ?, accessToken = ?, 
-          apiBaseUrl = ?, apiModel = ?, reverseProxy = ?, socksProxy = ?, 
+          timeoutMs = ?, apiKey = ?, apiBaseUrl = ?, 
+          apiDisableDebug = ?, reverseProxy = ?, socksProxy = ?, 
           socksAuth = ?, httpsProxy = ?, siteConfig = ?, mailConfig = ?, 
           auditConfig = ? 
           WHERE id = 1`
         params = [
           config.timeoutMs,
           config.apiKey,
-          config.apiDisableDebug,
-          config.accessToken,
           config.apiBaseUrl,
-          config.apiModel,
+          config.apiDisableDebug,
           config.reverseProxy,
           config.socksProxy,
           config.socksAuth,
@@ -395,17 +386,15 @@ export async function updateConfig(config: Config): Promise<Config> {
       } else {
         // 如果不存在记录，使用 INSERT，并指定 id = 1
         sql = `INSERT INTO config (
-          id, timeoutMs, apiKey, apiDisableDebug, accessToken, apiBaseUrl, 
-          apiModel, reverseProxy, socksProxy, socksAuth, httpsProxy, 
+          id, timeoutMs, apiKey, apiBaseUrl, apiDisableDebug, 
+          reverseProxy, socksProxy, socksAuth, httpsProxy, 
           siteConfig, mailConfig, auditConfig
         ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         params = [
           config.timeoutMs,
           config.apiKey,
-          config.apiDisableDebug,
-          config.accessToken,
           config.apiBaseUrl,
-          config.apiModel,
+          config.apiDisableDebug,
           config.reverseProxy,
           config.socksProxy,
           config.socksAuth,
@@ -462,7 +451,6 @@ export async function getKeys(): Promise<{ keys: KeyConfig[]; total: number }> {
     const keyConfig = new KeyConfig(
       row.key,
       row.apiBaseUrl,
-      row.keyModel as APIMODEL,
       JSON.parse(row.chatModels || '[]'),
       JSON.parse(row.userRoles || '[]'),
       row.remark || ''
@@ -494,14 +482,13 @@ export async function updateApiKeyStatus(id: string, status: Status) {
 export async function upsertKey(key: KeyConfig): Promise<KeyConfig> {
   if (!key.id) {
     return new Promise<KeyConfig>((resolve, reject) => {
-      const sql = 'INSERT INTO key_config (key, status, userRoles, chatModels, apiBaseUrl, keyModel, remark) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      const sql = 'INSERT INTO key_config (key, status, userRoles, chatModels, apiBaseUrl, remark) VALUES (?, ?, ?, ?, ?, ?)'
       db.run(sql, [
         key.key,
         key.status,
         JSON.stringify(key.userRoles),
         JSON.stringify(key.chatModels),
         key.apiBaseUrl,
-        key.keyModel,
         key.remark
       ], function(err) {
         if (err) reject(err)
@@ -513,14 +500,13 @@ export async function upsertKey(key: KeyConfig): Promise<KeyConfig> {
     })
   } else {
     return new Promise<KeyConfig>((resolve, reject) => {
-      const sql = 'UPDATE key_config SET key = ?, status = ?, userRoles = ?, chatModels = ?, apiBaseUrl = ?, keyModel = ?, remark = ? WHERE id = ?'
+      const sql = 'UPDATE key_config SET key = ?, status = ?, userRoles = ?, chatModels = ?, apiBaseUrl = ?, remark = ? WHERE id = ?'
       db.run(sql, [
         key.key,
         key.status,
         JSON.stringify(key.userRoles),
         JSON.stringify(key.chatModels),
         key.apiBaseUrl,
-        key.keyModel,
         key.remark,
         Number(key.id)
       ], (err) => {

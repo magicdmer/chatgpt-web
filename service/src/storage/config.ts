@@ -28,10 +28,8 @@ export async function getOriginConfig() {
     config = new Config(
       !isNaN(+process.env.TIMEOUT_MS) ? +process.env.TIMEOUT_MS : 600 * 1000,
       process.env.OPENAI_API_KEY,
-      process.env.OPENAI_API_DISABLE_DEBUG === 'true',
-      process.env.OPENAI_ACCESS_TOKEN,
       process.env.OPENAI_API_BASE_URL,
-      process.env.OPENAI_API_MODEL === 'ChatGPTUnofficialProxyAPI' ? 'ChatGPTUnofficialProxyAPI' : 'ChatGPTAPI',
+      process.env.OPENAI_API_DISABLE_DEBUG === 'true',
       process.env.API_REVERSE_PROXY,
       (process.env.SOCKS_PROXY_HOST && process.env.SOCKS_PROXY_PORT)
         ? (`${process.env.SOCKS_PROXY_HOST}:${process.env.SOCKS_PROXY_PORT}`)
@@ -68,12 +66,6 @@ export async function getOriginConfig() {
     }
     if (config.siteConfig.registerReview === undefined)
       config.siteConfig.registerReview = process.env.REGISTER_REVIEW === 'true'
-  }
-  if (config.apiModel !== 'ChatGPTAPI' && config.apiModel !== 'ChatGPTUnofficialProxyAPI') {
-    if (isNotEmptyString(config.accessToken))
-      config.apiModel = 'ChatGPTUnofficialProxyAPI'
-    else
-      config.apiModel = 'ChatGPTAPI'
   }
 
   if (config.auditConfig === undefined) {
@@ -139,16 +131,6 @@ export function clearApiKeyCache() {
 
 export async function getApiKeys() {
   const result = await getKeys()
-  if (result.keys.length <= 0) {
-    const config = await getCacheConfig()
-    if (config.apiModel === 'ChatGPTAPI')
-      result.keys.push(await upsertKey(new KeyConfig(config.apiKey, '', 'ChatGPTAPI', [], [], '')))
-
-    if (config.apiModel === 'ChatGPTUnofficialProxyAPI')
-      result.keys.push(await upsertKey(new KeyConfig(config.accessToken, '', 'ChatGPTUnofficialProxyAPI', [], [], '')))
-
-    result.total++
-  }
   result.keys.forEach((key) => {
     if (key.userRoles == null || key.userRoles.length <= 0) {
       key.userRoles.push(UserRole.Admin)

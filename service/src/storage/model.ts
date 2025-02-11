@@ -113,14 +113,12 @@ export class ChatRoom {
   prompt: string = ''
   usingContext: boolean
   status: Status = Status.Normal
-  accountId?: string
   chatModel: CHATMODEL
   constructor(userId: string, title: string, roomId: number) {
     this.userId = userId
     this.title = title
     this.roomId = roomId
     this.usingContext = true
-    this.accountId = undefined
     this.chatModel = 'gpt-3.5-turbo'
   }
 }
@@ -216,10 +214,8 @@ export class Config {
   constructor(
     public timeoutMs: number,
     public apiKey?: string,
-    public apiDisableDebug?: boolean,
-    public accessToken?: string,
     public apiBaseUrl?: string,
-    public apiModel?: APIMODEL,
+    public apiDisableDebug?: boolean,
     public reverseProxy?: string,
     public socksProxy?: string,
     public socksAuth?: string,
@@ -274,21 +270,17 @@ export class KeyConfig {
   id?: number
   key: string
   apiBaseUrl: string
-  keyModel: APIMODEL
   chatModels: CHATMODEL[]
   userRoles: UserRole[]
   status: Status
   remark: string
-  constructor(key: string, apiBaseUrl: string, keyModel: APIMODEL, chatModels: CHATMODEL[],
+  constructor(key: string, apiBaseUrl: string, chatModels: CHATMODEL[],
     userRoles: UserRole[], remark: string) {
     this.key = key
     this.apiBaseUrl = apiBaseUrl
-    this.keyModel = keyModel
     this.chatModels = chatModels
     this.userRoles = userRoles
     this.status = Status.Normal
     this.remark = remark
   }
 }
-
-export type APIMODEL = 'ChatGPTAPI' | 'ChatGPTUnofficialProxyAPI'

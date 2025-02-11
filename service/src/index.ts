@@ -572,8 +572,6 @@ router.post('/session', async (req, res) => {
     const config = await getCacheConfig()
     const hasAuth = config.siteConfig.loginEnabled
     const allowRegister = (await getCacheConfig()).siteConfig.registerEnabled
-    if (config.apiModel !== 'ChatGPTAPI' && config.apiModel !== 'ChatGPTUnofficialProxyAPI')
-      config.apiModel = 'ChatGPTAPI'
     const userId = await getUserId(req)
     const chatModels: {
       label
@@ -628,7 +626,6 @@ router.post('/session', async (req, res) => {
       data: {
         auth: hasAuth,
         allowRegister,
-        model: config.apiModel,
         title: config.siteConfig.siteTitle,
         chatModels,
         allChatModels: chatModelOptions,
@@ -846,13 +843,11 @@ router.post('/verifyadmin', authLimiter, async (req, res) => {
 
 router.post('/setting-base', rootAuth, async (req, res) => {
   try {
-    const { apiKey, apiModel, apiBaseUrl, accessToken, timeoutMs, reverseProxy, socksProxy, socksAuth, httpsProxy } = req.body as Config
+    const { apiKey, apiBaseUrl, timeoutMs, reverseProxy, socksProxy, socksAuth, httpsProxy } = req.body as Config
 
     const thisConfig = await getOriginConfig()
     thisConfig.apiKey = apiKey
-    thisConfig.apiModel = apiModel
     thisConfig.apiBaseUrl = apiBaseUrl
-    thisConfig.accessToken = accessToken
     thisConfig.reverseProxy = reverseProxy
     thisConfig.timeoutMs = timeoutMs
     thisConfig.socksProxy = socksProxy

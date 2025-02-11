@@ -1,10 +1,7 @@
 export class ConfigState {
   timeoutMs?: number
   apiKey?: string
-  accessToken?: string
-  accessTokenExpiredTime?: string
   apiBaseUrl?: string
-  apiModel?: APIMODEL
   reverseProxy?: string
   socksProxy?: string
   socksAuth?: string
@@ -97,31 +94,20 @@ export class KeyConfig {
   id?: string
   key: string
   apiBaseUrl: string
-  keyModel: APIMODEL
   chatModels: CHATMODEL[]
   userRoles: UserRole[]
   status: Status
   remark: string
-  constructor(key: string, apiBaseUrl: string, keyModel: APIMODEL, chatModels: CHATMODEL[], userRoles: UserRole[], remark: string) {
+  constructor(key: string, apiBaseUrl: string, chatModels: CHATMODEL[], 
+    userRoles: UserRole[], remark: string) {
     this.key = key
     this.apiBaseUrl = apiBaseUrl
-    this.keyModel = keyModel
     this.chatModels = chatModels
     this.userRoles = userRoles
     this.status = Status.Normal
     this.remark = remark
   }
 }
-
-export type APIMODEL = 'ChatGPTAPI' | 'ChatGPTUnofficialProxyAPI' | undefined
-
-export const apiModelOptions = ['ChatGPTAPI', 'ChatGPTUnofficialProxyAPI'].map((model: string) => {
-  return {
-    label: model,
-    key: model,
-    value: model,
-  }
-})
 
 export const userRoleOptions = Object.values(UserRole).filter(d => isNaN(Number(d))).map((role) => {
   return {
