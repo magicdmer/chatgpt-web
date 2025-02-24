@@ -1,7 +1,7 @@
 import type { AxiosProgressEvent, GenericAbortSignal } from 'axios'
 import { get, post } from '@/utils/request'
-import type { AuditConfig, CHATMODEL, ConfigState, KeyConfig, MailConfig, SiteConfig, Status, UserInfo } from '@/components/common/Setting/model'
-import { useAuthStore, useSettingStore } from '@/store'
+import type { AuditConfig, ConfigState, KeyConfig, MailConfig, SiteConfig, Status, UserInfo } from '@/components/common/Setting/model'
+import { useSettingStore } from '@/store'
 
 export function fetchChatConfig<T = any>() {
   return post<T>({
@@ -146,7 +146,7 @@ export function fetchGetChatRooms<T = any>() {
   })
 }
 
-export function fetchCreateChatRoom<T = any>(title: string, model: CHATMODEL, roomId: number) {
+export function fetchCreateChatRoom<T = any>(title: string, model: string, roomId: number) {
   return post<T>({
     url: '/room-create',
     data: { title, model, roomId },
@@ -174,7 +174,7 @@ export function fetchUpdateChatRoomUsingContext<T = any>(using: boolean, roomId:
   })
 }
 
-export function fetchUpdateChatRoomChatModel<T = any>(model: CHATMODEL, roomId: number) {
+export function fetchUpdateChatRoomChatModel<T = any>(model: string, roomId: number) {
   return post<T>({
     url: '/room-chatmodel',
     data: { model, roomId },

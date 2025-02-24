@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { getLocalState, setLocalState } from './helper'
 import { router } from '@/router'
 import { fetchClearChat, fetchCreateChatRoom, fetchDeleteChat, fetchDeleteChatRoom, fetchGetChatHistory, fetchGetChatRooms, fetchRenameChatRoom, fetchUpdateChatRoomChatModel, fetchUpdateChatRoomUsingContext } from '@/api'
-import type { CHATMODEL } from '@/components/common/Setting/model'
 
 export const useChatStore = defineStore('chat-store', {
   state: (): Chat.ChatState => getLocalState(),
@@ -95,7 +94,7 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
-    async setChatModel(model: CHATMODEL, roomId: number) {
+    async setChatModel(model: string, roomId: number) {
       await fetchUpdateChatRoomChatModel(model, roomId)
       this.recordState()
     },

@@ -8,7 +8,7 @@ import { abortChatProcess, chatConfig, chatReplyProcess, containsSensitiveWords,
 import { auth, getUserId } from './middleware/auth'
 import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig } from './storage/config'
 import { Status, UsageResponse, UserRole, chatModelOptions } from './storage/model'
-import type { AuditConfig, CHATMODEL, ChatInfo, ChatOptions, Config, KeyConfig, MailConfig, SiteConfig, UserInfo, UserOption } from './storage/model'
+import type { AuditConfig, ChatInfo, ChatOptions, Config, KeyConfig, MailConfig, SiteConfig, UserInfo, UserOption } from './storage/model'
 import {
   clearChat,
   createChatRoom,
@@ -135,7 +135,7 @@ router.post('/room-prompt', auth, async (req, res) => {
 router.post('/room-chatmodel', auth, async (req, res) => {
   try {
     const userId = req.headers.userId as string
-    const { model, roomId } = req.body as { model: CHATMODEL; roomId: number }
+    const { model, roomId } = req.body as { model: string; roomId: number }
     const success = await updateRoomChatModel(userId, roomId, model)
     if (success)
       res.send({ status: 'Success', message: `Saved successfully, ${roomId}, chatModel: ${model}`, data: null })
@@ -596,7 +596,7 @@ router.post('/session', async (req, res) => {
       const count: { key: string; count: number }[] = []
       chatModelOptions.forEach((chatModel) => {
         keys.forEach((key) => {
-          if (key.chatModels.includes(chatModel.value as CHATMODEL)) {
+          if (key.chatModels.includes(chatModel.value)) {
             if (count.filter(d => d.key === chatModel.value).length <= 0) {
               count.push({ key: chatModel.value, count: 1 })
             }

@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv'
 import type { TextAuditServiceProvider } from 'src/utils/textAudit'
 import { isNotEmptyString, isTextAuditServiceProvider } from '../utils/is'
-import { AuditConfig, CHATMODELS, Config, KeyConfig, MailConfig, SiteConfig, TextAudioType, UserRole } from './model'
+import { AuditConfig, Config, KeyConfig, MailConfig, SiteConfig, TextAudioType, UserRole, chatModelOptions } from './model'
 import { getConfig, getKeys, upsertKey } from './sqlite'
 
 dotenv.config()
@@ -138,9 +138,7 @@ export async function getApiKeys() {
       key.userRoles.push(UserRole.Guest)
     }
     if (key.chatModels == null || key.chatModels.length <= 0) {
-      CHATMODELS.forEach((chatModel) => {
-        key.chatModels.push(chatModel)
-      })
+      key.chatModels = chatModelOptions.map(option => option.value)
     }
   })
   return result

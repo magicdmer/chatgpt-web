@@ -2,10 +2,8 @@ import { Database } from 'sqlite3'
 import * as dotenv from 'dotenv'
 import dayjs from 'dayjs'
 import { md5 } from '../utils/security'
-import { ChatInfo, ChatRoom, ChatUsage, Status, UserInfo, UserRole, Config, ChatOptions, CHATMODEL, KeyConfig } from './model'
+import { ChatInfo, ChatRoom, ChatUsage, Status, UserInfo, UserRole, Config, ChatOptions, KeyConfig } from './model'
 import type { UsageResponse } from './model'
-import type { ChatMessage } from 'chatgpt-mg'
-import { existsSync, mkdirSync } from 'fs'
 
 interface ChatDBRow {
   id: number
@@ -13,10 +11,11 @@ interface ChatDBRow {
   uuid: number
   dateTime: number
   prompt: string
+  images: string      // 存储为 JSON 字符串
   response?: string
   status: number
-  options: string
-  previousResponse?: string
+  options: string     // 存储为 JSON 字符串
+  previousResponse?: string  // 存储为 JSON 字符串
 }
 
 interface ChatRoomDBRow {
@@ -27,7 +26,6 @@ interface ChatRoomDBRow {
   prompt?: string
   usingContext: boolean
   status: number
-  accountId?: string
   chatModel: string
 }
 
@@ -85,10 +83,11 @@ db.serialize(() => {
     uuid INTEGER NOT NULL,
     dateTime INTEGER NOT NULL,
     prompt TEXT NOT NULL,
+    images TEXT DEFAULT '[]',
     response TEXT,
     status INTEGER DEFAULT 0,
-    options TEXT,
-    previousResponse TEXT
+    options TEXT DEFAULT '{}',
+    previousResponse TEXT DEFAULT '[]'
   )`)
 
   // 创建聊天室表
@@ -100,7 +99,6 @@ db.serialize(() => {
     prompt TEXT,
     usingContext BOOLEAN DEFAULT true,
     status INTEGER DEFAULT 0,
-    accountId TEXT,
     chatModel TEXT DEFAULT 'gpt-3.5-turbo'
   )`)
 
@@ -198,11 +196,8 @@ export async function insertChat(uuid: number, text: string, roomId: number, opt
 }
 
 // 获取聊天信息
-export async function getChatByMessageId(messageId: string): Promise<ChatMessage | undefined> {
-  const [roomId, uuid] = messageId.split('_').map(Number)
-  if (isNaN(roomId) || isNaN(uuid)) return undefined
-
-  const row = await promisifyGet<ChatDBRow>('SELECT * FROM chat WHERE roomId = ? AND uuid = ?', [roomId, uuid])
+export async function getChatByMessageId(messageId: string): Promise<ChatInfo | undefined> {
+  const row = await promisifyGet<ChatDBRow>('SELECT * FROM chat WHERE json_extract(options, "$.messageId") = ?', [messageId])
   if (!row) return undefined
   
   const chatInfo = new ChatInfo(
@@ -212,36 +207,20 @@ export async function getChatByMessageId(messageId: string): Promise<ChatMessage
     JSON.parse(row.options)
   )
   chatInfo.id = row.id
+  chatInfo.dateTime = row.dateTime
   chatInfo.response = row.response
   chatInfo.status = row.status
   chatInfo.previousResponse = row.previousResponse ? JSON.parse(row.previousResponse) : undefined
   
-  return {
-    id: messageId,
-    conversationId: chatInfo.options.conversationId,
-    parentMessageId: chatInfo.options.parentMessageId,
-    role: 'assistant',
-    text: chatInfo.response || ''
-  }
-}
-
-// 更新聊天信息
-export async function updateRoomAccountId(userId: string, roomId: number, accountId: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const sql = 'UPDATE chat_room SET accountId = ? WHERE userId = ? AND roomId = ?'
-    db.run(sql, [accountId, userId, roomId], function(err) {
-      if (err) reject(err)
-      else resolve(this.changes > 0)
-    })
-  })
+  return chatInfo
 }
 
 // 创建聊天室
-export async function createChatRoom(userId: string, title: string, roomId: number) {
-  const room = new ChatRoom(userId, title, roomId)
+export async function createChatRoom(userId: string, title: string, roomId: number, chatModel: string) {
+  const room = new ChatRoom(userId, title, roomId, chatModel)
   return new Promise<ChatRoom>((resolve, reject) => {
-    const sql = 'INSERT INTO chat_room (userId, title, roomId) VALUES (?, ?, ?)'
-    db.run(sql, [userId, title, roomId], function(err) {
+    const sql = 'INSERT INTO chat_room (userId, title, roomId, chatModel) VALUES (?, ?, ?, ?)'
+    db.run(sql, [userId, title, roomId, chatModel], function(err) {
       if (err) reject(err)
       else {
         room.id = this.lastID
@@ -255,24 +234,22 @@ export async function createChatRoom(userId: string, title: string, roomId: numb
 export async function getChatRooms(userId: string): Promise<ChatRoom[]> {
   const rows = await promisifyAll<ChatRoomDBRow>('SELECT * FROM chat_room WHERE userId = ? AND status != ?', [userId, Status.Deleted])
   return rows.map(row => {
-    const room = new ChatRoom(row.userId, row.title, row.roomId)
+    const room = new ChatRoom(row.userId, row.title, row.roomId, row.chatModel)
     room.id = row.id
     room.prompt = row.prompt || ''
     room.usingContext = row.usingContext
     room.status = row.status
-    room.accountId = row.accountId
-    room.chatModel = row.chatModel as CHATMODEL
+    room.chatModel = row.chatModel
     return room
   })
 }
 
 // 更新聊天室聊天模型
-export async function updateRoomChatModel(userId: string, roomId: number, chatModel: CHATMODEL): Promise<boolean> {
-  return new Promise((resolve, reject) => {
+export async function updateRoomChatModel(userId: string, roomId: number, chatModel: string): Promise<boolean> {
+  return new Promise((resolve) => {
     const sql = 'UPDATE chat_room SET chatModel = ? WHERE userId = ? AND roomId = ?'
     db.run(sql, [chatModel, userId, roomId], function(err) {
-      if (err) reject(err)
-      else resolve(this.changes > 0)
+      resolve(!err)
     })
   })
 }
@@ -656,13 +633,12 @@ export async function getChatRoom(userId: string, roomId: number): Promise<ChatR
   const row = await promisifyGet<ChatRoomDBRow>('SELECT * FROM chat_room WHERE userId = ? AND roomId = ? AND status != ?', [userId, roomId, Status.Deleted])
   if (!row) return null
   
-  const room = new ChatRoom(row.userId, row.title, row.roomId)
+  const room = new ChatRoom(row.userId, row.title, row.roomId, row.chatModel)
   room.id = row.id
   room.prompt = row.prompt
   room.usingContext = row.usingContext
   room.status = row.status
-  room.accountId = row.accountId
-  room.chatModel = row.chatModel as CHATMODEL
+  room.chatModel = row.chatModel
   return room
 }
 

@@ -4,10 +4,8 @@ import type { ChatGPTAPIOptions, ChatMessage, SendMessageOptions } from 'chatgpt
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
-import jwt_decode from 'jwt-decode'
-import dayjs from 'dayjs'
 import axios from 'axios'
-import type { AuditConfig, CHATMODEL, KeyConfig, UserInfo } from '../storage/model'
+import type { AuditConfig, KeyConfig, UserInfo } from '../storage/model'
 import { Status } from '../storage/model'
 import type { TextAuditService } from '../utils/textAudit'
 import { textAuditServices } from '../utils/textAudit'
@@ -15,7 +13,7 @@ import { getCacheApiKeys, getCacheConfig, getOriginConfig } from '../storage/con
 import { sendResponse } from '../utils'
 import { hasAnyRole, isNotEmptyString } from '../utils/is'
 import type { ChatContext, ModelConfig } from '../types'
-import { getChatByMessageId, updateRoomAccountId } from '../storage/sqlite'
+import { getChatByMessageId } from '../storage/sqlite'
 import type { RequestOptions } from './types'
 import { ChatGPTAPI } from 'chatgpt-mg'
 
@@ -490,7 +488,7 @@ async function randomKeyConfig(keys: KeyConfig[]): Promise<KeyConfig | null> {
   return thisKey
 }
 
-async function getRandomApiKey(user: UserInfo, chatModel: CHATMODEL): Promise<KeyConfig | undefined> {
+async function getRandomApiKey(user: UserInfo, chatModel: string): Promise<KeyConfig | undefined> {
   let keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles))
     .filter(d => d.chatModels.includes(chatModel)).filter(d => d.status !== Status.Disabled)
   return randomKeyConfig(keys)

@@ -17,7 +17,6 @@ import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding
 import { t } from '@/locales'
 import { debounce } from '@/utils/functions/debounce'
 import IconPrompt from '@/icons/Prompt.vue'
-import type { CHATMODEL } from '@/components/common/Setting/model'
 const Prompt = defineAsyncComponent(() => import('@/components/common/Setting/Prompt.vue'))
 
 let controller = new AbortController()
@@ -575,7 +574,7 @@ const footerClass = computed(() => {
   return classes
 })
 
-async function handleSyncChatModel(chatModel: CHATMODEL) {
+async function handleSyncChatModel(chatModel: string) {
   if (!currentChatHistory.value)
     return
 
