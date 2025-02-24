@@ -68,11 +68,11 @@ export async function initApi(key: KeyConfig, model: string) {
   }
   else if (model.toLowerCase().includes('-128k')) {
     options.maxModelTokens = 131072
-    options.maxResponseTokens = 4096
+    options.maxResponseTokens = 2048
   }
   else if (model.toLowerCase().includes('-200k')) {
     options.maxModelTokens = 204800
-    options.maxResponseTokens = 4096
+    options.maxResponseTokens = 2048
   }
   else if (model.toLowerCase().includes('gpt-4-all')) {
     // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
@@ -99,27 +99,27 @@ export async function initApi(key: KeyConfig, model: string) {
   }
   else if (model.toLowerCase().includes('claude')) {
     options.maxModelTokens = 204800
-    options.maxResponseTokens = 4096
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('glm-zero-Preview')) {
+    options.maxModelTokens = 16384
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('glm-4-airx')) {
+    options.maxModelTokens = 8192
+    options.maxResponseTokens = 1024
   }
   else if (model.toLowerCase().includes('glm')) {
-    options.maxModelTokens = 8192
-    options.maxResponseTokens = 1024
-  }
-  else if (model.toLowerCase().includes('qwen-turbo')) {
-    options.maxModelTokens = 8192
-    options.maxResponseTokens = 1024
+    options.maxModelTokens = 131072
+    options.maxResponseTokens = 2048
   }
   else if (model.toLowerCase().includes('qwen-plus')) {
-    options.maxModelTokens = 30720
+    options.maxModelTokens = 131072
     options.maxResponseTokens = 2048
   }
   else if (model.toLowerCase().includes('qwen-max')) {
-    options.maxModelTokens = 6144
-    options.maxResponseTokens = 1024
-  }
-  else if (model.toLowerCase().includes('SparkDesk')) {
-    options.maxModelTokens = 8192
-    options.maxResponseTokens = 1024
+    options.maxModelTokens = 32768
+    options.maxResponseTokens = 2048
   }
   else if (model.toLowerCase().includes('command-r')) {
     options.maxModelTokens = 131072
@@ -127,6 +127,10 @@ export async function initApi(key: KeyConfig, model: string) {
   }
   else if (model.toLowerCase().includes('deepseek')) {
     options.maxModelTokens = 32768
+    options.maxResponseTokens = 2048
+  }
+  else if (model.toLowerCase().includes('grok')) {
+    options.maxModelTokens = 102400
     options.maxResponseTokens = 2048
   }
   else {
@@ -302,101 +306,8 @@ async function containsSensitiveWords(audit: AuditConfig, text: string): Promise
   return false
 }
 
-let cachedBalance: number | undefined
-let cacheExpiration = 0
-
-async function fetchBalance() {
-  const now = new Date().getTime()
-  if (cachedBalance && cacheExpiration > now)
-    return Promise.resolve(cachedBalance.toFixed(3))
-
-  // 计算起始日期和结束日期
-  const startDate = new Date(now - 90 * 24 * 60 * 60 * 1000)
-  const endDate = new Date(now + 24 * 60 * 60 * 1000)
-
-  const config = await getCacheConfig()
-  const OPENAI_API_KEY = config.apiKey
-  const OPENAI_API_BASE_URL = config.apiBaseUrl
-
-  if (!isNotEmptyString(OPENAI_API_KEY))
-    return Promise.resolve('-')
-
-  const API_BASE_URL = isNotEmptyString(OPENAI_API_BASE_URL)
-    ? OPENAI_API_BASE_URL
-    : 'https://api.openai.com'
-
-  // 查是否订阅
-  const urlSubscription = `${API_BASE_URL}/v1/dashboard/billing/subscription`
-  // 查普通账单
-  // const urlBalance = `${API_BASE_URL}/dashboard/billing/credit_grants`
-  // 查使用量
-  const urlUsage = `${API_BASE_URL}/v1/dashboard/billing/usage?start_date=${formatDate(startDate)}&end_date=${formatDate(endDate)}`
-
-  const headers = {
-    'Authorization': `Bearer ${OPENAI_API_KEY}`,
-    'Content-Type': 'application/json',
-  }
-  let socksAgent
-  let httpsAgent
-  if (isNotEmptyString(config.socksProxy)) {
-    socksAgent = new SocksProxyAgent({
-      hostname: config.socksProxy.split(':')[0],
-      port: parseInt(config.socksProxy.split(':')[1]),
-      userId: isNotEmptyString(config.socksAuth) ? config.socksAuth.split(':')[0] : undefined,
-      password: isNotEmptyString(config.socksAuth) ? config.socksAuth.split(':')[1] : undefined,
-    })
-  }
-  else if (isNotEmptyString(config.httpsProxy)) {
-    httpsAgent = new HttpsProxyAgent(config.httpsProxy)
-  }
-
-  try {
-    // 获取API限额
-    let response = await fetch(urlSubscription, { agent: socksAgent === undefined ? httpsAgent : socksAgent, headers })
-    if (!response.ok) {
-      console.error('您的账户已被封禁，请登录OpenAI进行查看。')
-      return
-    }
-    interface SubscriptionData {
-      hard_limit_usd?: number
-      // 这里可以添加其他可能的属性
-    }
-    const subscriptionData: SubscriptionData = await response.json()
-    const totalAmount = subscriptionData.hard_limit_usd
-
-    interface UsageData {
-      total_usage?: number
-      // 这里可以添加其他可能的属性
-    }
-
-    // 获取已使用量
-    response = await fetch(urlUsage, { agent: socksAgent === undefined ? httpsAgent : socksAgent, headers })
-    const usageData: UsageData = await response.json()
-    const totalUsage = usageData.total_usage / 100
-
-    // 计算剩余额度
-    cachedBalance = totalAmount - totalUsage
-    cacheExpiration = now + 60 * 60 * 1000
-
-    return Promise.resolve(cachedBalance.toFixed(3))
-  }
-  catch (error) {
-    global.console.error(error)
-    return Promise.resolve('-')
-  }
-}
-
-function formatDate(date) {
-  const year = date.getFullYear()
-  const month = (date.getMonth() + 1).toString().padStart(2, '0')
-  const day = date.getDate().toString().padStart(2, '0')
-
-  return `${year}-${month}-${day}`
-}
-
 async function chatConfig() {
   const config = await getOriginConfig() as ModelConfig
-  config.balance = await fetchBalance()
   return sendResponse<ModelConfig>({
     type: 'Success',
     data: config,
