@@ -3,6 +3,13 @@ FROM node:18-alpine AS frontend
 
 RUN npm install pnpm -g
 
+# 安装构建工具和 SQLite 依赖
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    sqlite-dev
+    
 WORKDIR /app
 
 COPY ./package.json /app
@@ -37,13 +44,24 @@ FROM node:18-alpine
 
 RUN npm install pnpm -g
 
+# 添加必要的构建依赖
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    sqlite-dev
+
 WORKDIR /app
 
 COPY /service/package.json /app
-
 COPY /service/pnpm-lock.yaml /app
 
-RUN pnpm install --production && rm -rf /root/.npm /root/.pnpm-store /usr/local/share/.cache /tmp/*
+# 安装依赖并重新构建 sqlite3
+RUN pnpm install --production && \
+    cd node_modules/sqlite3 && \
+    pnpm rebuild && \
+    cd ../.. && \
+    rm -rf /root/.npm /root/.pnpm-store /usr/local/share/.cache /tmp/*
 
 COPY /service /app
 
