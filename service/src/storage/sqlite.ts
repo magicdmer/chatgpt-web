@@ -4,6 +4,7 @@ import dayjs from 'dayjs'
 import { md5 } from '../utils/security'
 import { ChatInfo, ChatRoom, ChatUsage, Status, UserInfo, UserRole, Config, ChatOptions, KeyConfig } from './model'
 import type { UsageResponse } from './model'
+import fs from 'fs'
 
 interface ChatDBRow {
   id: number
@@ -72,7 +73,11 @@ interface KeyConfigDBRow {
 
 dotenv.config()
 
-const db = new Database('chatgpt.db')
+// 确保数据库目录存在
+if (!fs.existsSync('./data'))
+  fs.mkdirSync('./data', { recursive: true })
+
+const db = new Database('./data/chatgpt.db')
 
 // 初始化数据库表
 db.serialize(() => {
