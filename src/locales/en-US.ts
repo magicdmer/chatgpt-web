@@ -94,7 +94,6 @@ export default {
     theme: 'Theme',
     language: 'Language',
     api: 'API',
-    reverseProxy: 'Reverse Proxy',
     timeout: 'Timeout(ms)',
     socks: 'Socks',
     socksAuth: 'Socks Auth',

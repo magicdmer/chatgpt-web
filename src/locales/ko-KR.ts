@@ -89,7 +89,6 @@ export default {
     theme: '테마',
     language: '언어',
     api: 'API',
-    reverseProxy: '역방향 프록시',
     timeout: '시간 초과(ms)',
     socks: 'Socks',
     socksAuth: 'socksAuth',

@@ -91,7 +91,6 @@ export default {
     theme: '主題',
     language: '語言',
     api: 'API',
-    reverseProxy: '反向代理',
     timeout: '逾時(ms)',
     socks: 'Socks',
     socksAuth: 'Socks 授权',

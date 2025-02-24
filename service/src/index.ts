@@ -843,12 +843,11 @@ router.post('/verifyadmin', authLimiter, async (req, res) => {
 
 router.post('/setting-base', rootAuth, async (req, res) => {
   try {
-    const { apiKey, apiBaseUrl, timeoutMs, reverseProxy, socksProxy, socksAuth, httpsProxy } = req.body as Config
+    const { apiKey, apiBaseUrl, timeoutMs, socksProxy, socksAuth, httpsProxy } = req.body as Config
 
     const thisConfig = await getOriginConfig()
     thisConfig.apiKey = apiKey
     thisConfig.apiBaseUrl = apiBaseUrl
-    thisConfig.reverseProxy = reverseProxy
     thisConfig.timeoutMs = timeoutMs
     thisConfig.socksProxy = socksProxy
     thisConfig.socksAuth = socksAuth

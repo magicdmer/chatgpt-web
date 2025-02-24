@@ -2,7 +2,6 @@ export class ConfigState {
   timeoutMs?: number
   apiKey?: string
   apiBaseUrl?: string
-  reverseProxy?: string
   socksProxy?: string
   socksAuth?: string
   httpsProxy?: string

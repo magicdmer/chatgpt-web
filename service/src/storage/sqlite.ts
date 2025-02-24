@@ -52,7 +52,6 @@ interface ConfigDBRow {
   apiKey?: string
   apiBaseUrl?: string
   apiDisableDebug?: boolean
-  reverseProxy?: string
   socksProxy?: string
   socksAuth?: string
   httpsProxy?: string
@@ -131,7 +130,6 @@ db.serialize(() => {
     apiKey TEXT,
     apiBaseUrl TEXT,
     apiDisableDebug BOOLEAN,
-    reverseProxy TEXT,
     socksProxy TEXT,
     socksAuth TEXT,
     httpsProxy TEXT,
@@ -321,7 +319,6 @@ export async function getConfig(): Promise<Config | null> {
     row.apiKey,
     row.apiBaseUrl,
     row.apiDisableDebug,
-    row.reverseProxy,
     row.socksProxy,
     row.socksAuth,
     row.httpsProxy,
@@ -348,7 +345,7 @@ export async function updateConfig(config: Config): Promise<Config> {
         // 如果存在记录，使用 UPDATE
         sql = `UPDATE config SET 
           timeoutMs = ?, apiKey = ?, apiBaseUrl = ?, 
-          apiDisableDebug = ?, reverseProxy = ?, socksProxy = ?, 
+          apiDisableDebug = ?, socksProxy = ?, 
           socksAuth = ?, httpsProxy = ?, siteConfig = ?, mailConfig = ?, 
           auditConfig = ? 
           WHERE id = 1`
@@ -357,7 +354,6 @@ export async function updateConfig(config: Config): Promise<Config> {
           config.apiKey,
           config.apiBaseUrl,
           config.apiDisableDebug,
-          config.reverseProxy,
           config.socksProxy,
           config.socksAuth,
           config.httpsProxy,
@@ -366,18 +362,17 @@ export async function updateConfig(config: Config): Promise<Config> {
           JSON.stringify(config.auditConfig)
         ]
       } else {
-        // 如果不存在记录，使用 INSERT，并指定 id = 1
+        // 如果不存在记录，使用 INSERT
         sql = `INSERT INTO config (
-          id, timeoutMs, apiKey, apiBaseUrl, apiDisableDebug, 
-          reverseProxy, socksProxy, socksAuth, httpsProxy, 
+          timeoutMs, apiKey, apiBaseUrl, apiDisableDebug, 
+          socksProxy, socksAuth, httpsProxy, 
           siteConfig, mailConfig, auditConfig
-        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         params = [
           config.timeoutMs,
           config.apiKey,
           config.apiBaseUrl,
           config.apiDisableDebug,
-          config.reverseProxy,
           config.socksProxy,
           config.socksAuth,
           config.httpsProxy,

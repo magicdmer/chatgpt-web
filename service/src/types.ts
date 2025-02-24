@@ -18,7 +18,6 @@ export interface ChatContext {
 }
 
 export interface ModelConfig {
-  reverseProxy?: string
   timeoutMs?: number
   socksProxy?: string
   socksAuth?: string

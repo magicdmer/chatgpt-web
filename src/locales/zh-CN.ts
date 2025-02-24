@@ -94,7 +94,6 @@ export default {
     theme: '主题',
     language: '语言',
     api: 'API',
-    reverseProxy: '反向代理',
     timeout: '超时(ms)',
     socks: 'Socks',
     socksAuth: 'Socks 授权',

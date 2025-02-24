@@ -190,7 +190,6 @@ export class Config {
     public apiKey?: string,
     public apiBaseUrl?: string,
     public apiDisableDebug?: boolean,
-    public reverseProxy?: string,
     public socksProxy?: string,
     public socksAuth?: string,
     public httpsProxy?: string,
