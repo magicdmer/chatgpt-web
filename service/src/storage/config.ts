@@ -30,7 +30,6 @@ export async function getOriginConfig() {
       process.env.OPENAI_API_KEY,
       process.env.OPENAI_API_BASE_URL,
       process.env.OPENAI_API_DISABLE_DEBUG === 'true',
-      process.env.API_REVERSE_PROXY,
       (process.env.SOCKS_PROXY_HOST && process.env.SOCKS_PROXY_PORT)
         ? (`${process.env.SOCKS_PROXY_HOST}:${process.env.SOCKS_PROXY_PORT}`)
         : '',
