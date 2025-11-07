@@ -1,10 +1,11 @@
 import * as dotenv from 'dotenv'
 import 'isomorphic-fetch'
-import type { ChatGPTAPIOptions, ChatMessage, SendMessageOptions } from 'chatgpt-mg'
+import OpenAI from 'openai'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
 import axios from 'axios'
+import crypto from 'crypto'
 import type { AuditConfig, KeyConfig, UserInfo } from '../storage/model'
 import { Status } from '../storage/model'
 import type { TextAuditService } from '../utils/textAudit'
@@ -14,8 +15,7 @@ import { sendResponse } from '../utils'
 import { hasAnyRole, isNotEmptyString } from '../utils/is'
 import type { ChatContext, ModelConfig } from '../types'
 import { getChatByMessageId } from '../storage/sqlite'
-import type { RequestOptions } from './types'
-import { ChatGPTAPI } from 'chatgpt-mg'
+import type { RequestOptions, ChatMessage } from './types'
 
 const { HttpsProxyAgent } = httpsProxyAgent
 
@@ -33,120 +33,19 @@ const ErrorCodeMessage: Record<string, string> = {
 let auditService: TextAuditService
 const _lockedKeys: { key: string; lockedTime: number }[] = []
 
-export async function initApi(key: KeyConfig, model: string) {
+export async function createClient(key: KeyConfig) {
   // More Info: https://github.com/transitive-bullshit/chatgpt-api
 
   const config = await getCacheConfig()
   const OPENAI_API_BASE_URL = config.apiBaseUrl
 
-  const options: ChatGPTAPIOptions = {
-    apiKey: key.key,
-    completionParams: { model },
-    debug: !config.apiDisableDebug,
-    messageStore: undefined,
-    getMessageById,
-  }
+  const baseURL = key.apiBaseUrl.length !== 0
+    ? `${key.apiBaseUrl}/v1`
+    : (isNotEmptyString(OPENAI_API_BASE_URL) ? `${OPENAI_API_BASE_URL}/v1` : undefined)
 
-  // Set the token limits based on the model's type. This is because different models have different token limits.
-  // The token limit includes the token count from both the message array sent and the model response.
-  // 'gpt-35-turbo' has a limit of 4096 tokens, 'gpt-4' and 'gpt-4-32k' have limits of 8192 and 32768 tokens respectively.
+  const customFetch = await setupProxyFetch()
 
-  // Check if the model type includes '16k'
-  if (model.toLowerCase().includes('-8k')) {
-    options.maxModelTokens = 8192
-    options.maxResponseTokens = 1024
-  }
-  else if (model.toLowerCase().includes('-16k')) {
-    // If it's a '16k' model, set the maxModelTokens to 16384 and maxResponseTokens to 4096
-    options.maxModelTokens = 16384
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('-32k')) {
-    // If it's a '32k' model, set the maxModelTokens to 32768 and maxResponseTokens to 8192
-    options.maxModelTokens = 32768
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('-128k')) {
-    options.maxModelTokens = 131072
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('-200k')) {
-    options.maxModelTokens = 204800
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('gpt-4-all')) {
-    // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
-    options.maxModelTokens = 32768
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('gpt-4-gizmo')) {
-    // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
-    options.maxModelTokens = 32768
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('gpt-4')) {
-    // If it's a 'gpt-4' model, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
-    options.maxModelTokens = 8192
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('gemini-1.5-pro')) {
-    options.maxModelTokens = 102400
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('gemini-pro')) {
-    options.maxModelTokens = 30720
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('claude')) {
-    options.maxModelTokens = 204800
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('glm-zero-Preview')) {
-    options.maxModelTokens = 16384
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('glm-4-airx')) {
-    options.maxModelTokens = 8192
-    options.maxResponseTokens = 1024
-  }
-  else if (model.toLowerCase().includes('glm')) {
-    options.maxModelTokens = 131072
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('qwen-plus')) {
-    options.maxModelTokens = 131072
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('qwen-max')) {
-    options.maxModelTokens = 32768
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('command-r')) {
-    options.maxModelTokens = 131072
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('deepseek')) {
-    options.maxModelTokens = 32768
-    options.maxResponseTokens = 2048
-  }
-  else if (model.toLowerCase().includes('grok')) {
-    options.maxModelTokens = 102400
-    options.maxResponseTokens = 2048
-  }
-  else {
-    // If none of the above, use the default values, set the maxModelTokens and maxResponseTokens to 8192 and 2048 respectively
-    options.maxModelTokens = 8192
-    options.maxResponseTokens = 1024
-  }
-
-  if (key.apiBaseUrl.length !== 0)
-    options.apiBaseUrl = `${key.apiBaseUrl}/v1`
-  else if (isNotEmptyString(OPENAI_API_BASE_URL))
-    options.apiBaseUrl = '$(OPENAI_API_BASE_URL)/v1'
-
-  await setupProxy(options)
-
-  return new ChatGPTAPI({ ...options })
+  return new OpenAI({ apiKey: key.key, baseURL, fetch: customFetch ?? undefined })
 }
 
 async function draw(url: string, key: string, prompt: string, model: string): Promise<string> {
@@ -216,45 +115,83 @@ async function chatReplyProcess(options: RequestOptions) {
 
   try {
     const timeoutMs = (await getCacheConfig()).timeoutMs
-    let options: SendMessageOptions = { timeoutMs }
 
-    if (isNotEmptyString(systemMessage)) {
-      if (systemMessage.startsWith('g-') && systemMessage.length === 11 && chatModel === 'gpt-4-all') {
-        options.gizmo_id = systemMessage
-        options.systemMessage = ''
+    // gizmo 相关：官方不支持，保持兼容但不真正开启
+    let systemMsg = systemMessage
+    if (isNotEmptyString(systemMsg)) {
+      if (systemMsg.startsWith('g-') && systemMsg.length === 11 && chatModel === 'gpt-4-all') {
+        systemMsg = ''
       }
-      else if (systemMessage.startsWith('g-') && systemMessage.length === 11 && chatModel === 'gpt-4-gizmo') {
-        model = `gpt-4-gizmo-${systemMessage}`
-        options.systemMessage = ''
+      else if (systemMsg.startsWith('g-') && systemMsg.length === 11 && chatModel === 'gpt-4-gizmo') {
+        model = `gpt-4-gizmo-${systemMsg}`
+        systemMsg = ''
       }
-      else if (systemMessage.startsWith('g-') && systemMessage.length === 11) {
-        options.systemMessage = ''
+      else if (systemMsg.startsWith('g-') && systemMsg.length === 11) {
+        systemMsg = ''
       }
-      else { options.systemMessage = systemMessage }
-    }
-    
-    options.completionParams = { model, temperature, top_p }
-
-    if (lastContext != null) {
-      options.parentMessageId = lastContext.parentMessageId
     }
 
-    const api = await initApi(key, model)
+    // 构造消息上下文
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+    if (isNotEmptyString(systemMsg)) messages.push({ role: 'system', content: systemMsg })
+    if (lastContext?.parentMessageId) {
+      let pid: string | undefined = lastContext.parentMessageId
+      const backlog: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+      let safety = 20
+      while (pid && safety-- > 0) {
+        const m = await getMessageById(pid)
+        if (!m) break
+        if (m.role === 'user' || m.role === 'assistant')
+          backlog.unshift({ role: m.role, content: m.text })
+        pid = m.parentMessageId
+      }
+      messages.push(...backlog)
+    }
+    messages.push({ role: 'user', content: message })
 
+    const client = await createClient(key)
     const abort = new AbortController()
-    options.abortSignal = abort.signal
     processThreads.push({ userId, abort, messageId })
-    const response = await api.sendMessage(message, {
-      ...options,
-      onProgress: (partialResponse) => {
-        process?.(partialResponse)
-      },
-    })
 
-    return sendResponse({ type: 'Success', data: response })
+    const conversationId = lastContext?.conversationId ?? crypto.randomUUID()
+    let finalText = ''
+    let finishReason: string | null = null
+    let usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; estimated?: boolean } | undefined
+
+    const stream = await client.chat.completions.create({
+      model,
+      messages,
+      temperature,
+      top_p,
+      stream: true,
+    }, { signal: abort.signal, timeout: timeoutMs })
+
+    for await (const chunk of stream) {
+      const choice = chunk.choices?.[0]
+      const delta = choice?.delta?.content ?? ''
+      if (delta) finalText += delta
+      finishReason = choice?.finish_reason ?? null
+
+      const partial: ChatMessage = {
+        id: chunk.id,
+        conversationId,
+        role: 'assistant',
+        text: finalText,
+        detail: { choices: [{ finish_reason: finishReason }] },
+      }
+      process?.(partial)
+    }
+
+    // usage 可能在最终块返回，若没有则由路由层估算兜底
+    if (!usage) usage = { estimated: true }
+
+    return sendResponse({
+      type: 'Success',
+      data: { id: messageId, conversationId, text: finalText, detail: { usage } },
+    })
   }
   catch (error: any) {
-    const code = error.statusCode
+    const code = error.status ?? error.statusCode
     if (code === 429 && (error.message.includes('Too Many Requests') || error.message.includes('Rate limit'))) {
       if (options.tryCount++ < 3) {
         _lockedKeys.push({ key: key.key, lockedTime: Date.now() })
@@ -265,7 +202,7 @@ async function chatReplyProcess(options: RequestOptions) {
     global.console.error(error)
     if (Reflect.has(ErrorCodeMessage, code))
       return sendResponse({ type: 'Fail', message: ErrorCodeMessage[code] })
-    return sendResponse({ type: 'Fail', message: error.message ?? 'Please check the back-end console' })
+    return sendResponse({ type: 'Fail', message: error.message ?? error.error?.message ?? 'Please check the back-end console' })
   }
   finally {
     const index = processThreads.findIndex(d => d.userId === userId)
@@ -314,7 +251,7 @@ async function chatConfig() {
   })
 }
 
-async function setupProxy(options: ChatGPTAPIOptions) {
+async function setupProxyFetch(): Promise<typeof fetch | undefined> {
   const config = await getCacheConfig()
   if (isNotEmptyString(config.socksProxy)) {
     const agent = new SocksProxyAgent({
@@ -324,21 +261,18 @@ async function setupProxy(options: ChatGPTAPIOptions) {
       password: isNotEmptyString(config.socksAuth) ? config.socksAuth.split(':')[1] : undefined,
 
     })
-    options.fetch = (url, options) => {
-      return fetch(url, { agent, ...options })
-    }
+    return (url, options) => fetch(url, { agent, ...options })
   }
   else {
     if (isNotEmptyString(config.httpsProxy)) {
       const httpsProxy = config.httpsProxy
       if (httpsProxy) {
         const agent = new HttpsProxyAgent(httpsProxy)
-        options.fetch = (url, options) => {
-          return fetch(url, { agent, ...options })
-        }
+        return (url, options) => fetch(url, { agent, ...options })
       }
     }
   }
+  return undefined
 }
 
 async function getMessageById(id: string): Promise<ChatMessage> {

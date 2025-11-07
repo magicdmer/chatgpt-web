@@ -1,4 +1,3 @@
-import type { FetchFn } from 'chatgpt-mg'
 import type { JwtPayload } from 'jsonwebtoken'
 
 export interface RequestProps {
