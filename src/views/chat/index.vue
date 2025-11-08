@@ -70,11 +70,6 @@ function handleSubmit() {
   onConversation()
 }
 
-function isGeminiThinkingModel(model: string) {
-  const m = (model || '').toLowerCase()
-  return m.includes('gemini') && m.includes('thinking')
-}
-
 async function handleToggleUsingThinking() {
   if (!currentChatHistory.value)
     return
