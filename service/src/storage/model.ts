@@ -215,10 +215,11 @@ export class ChatUsage {
     this.chatId = chatId
     this.messageId = messageId
     if (usage) {
-      this.promptTokens = usage.prompt_tokens
-      this.completionTokens = usage.completion_tokens
-      this.totalTokens = usage.total_tokens
-      this.estimated = usage.estimated
+      // 兼容第三方返回缺少字段的情况，使用默认值 0/false，避免 NOT NULL 约束错误
+      this.promptTokens = usage.prompt_tokens ?? 0
+      this.completionTokens = usage.completion_tokens ?? 0
+      this.totalTokens = usage.total_tokens ?? (this.promptTokens + this.completionTokens)
+      this.estimated = usage.estimated ?? false
     }
     this.dateTime = new Date().getTime()
   }

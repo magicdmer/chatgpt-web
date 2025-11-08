@@ -58,6 +58,18 @@ const router = express.Router()
 app.use(express.static('public'))
 app.use(express.json())
 
+// Select the closest supported tokenizer model for estimating token counts
+function mapModelForTokenizer(model?: string): string {
+  if (!model) return 'gpt-3.5-turbo'
+  const m = model.toLowerCase()
+  if (m.startsWith('gpt-4')) return 'gpt-4'
+  if (m.startsWith('gpt-3.5')) return 'gpt-3.5-turbo'
+  // OpenAI o-series models use a different BPE; approximate with gpt-4
+  if (m.includes('gpt-4o') || m.includes('o3')) return 'gpt-4'
+  // Fallback for non-OpenAI models (Claude/Gemini etc.)
+  return 'gpt-3.5-turbo'
+}
+
 app.all('*', (_, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Headers', 'authorization, Content-Type')
@@ -448,11 +460,24 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       if (!result.data.detail)
         result.data.detail = {}
       result.data.detail.usage = new UsageResponse()
-      // 因为 token 本身不计算, 所以这里默认以 gpt 3.5 的算做一个伪统计
-      result.data.detail.usage.prompt_tokens = textTokens(prompt, 'gpt-3.5-turbo')
-      result.data.detail.usage.completion_tokens = textTokens(result.data.text, 'gpt-3.5-turbo')
+      // 使用更贴近当前模型的分词器做估算，无法精确时回退到 gpt-3.5
+      const tokenizerModel = mapModelForTokenizer(room?.chatModel)
+      result.data.detail.usage.prompt_tokens = textTokens(prompt, tokenizerModel)
+      result.data.detail.usage.completion_tokens = textTokens(result.data.text, tokenizerModel)
       result.data.detail.usage.total_tokens = result.data.detail.usage.prompt_tokens + result.data.detail.usage.completion_tokens
       result.data.detail.usage.estimated = true
+    }
+    else {
+      // usage 存在但字段缺失时进行补全估算，避免出现空值
+      const u = result.data.detail.usage as UsageResponse & Record<string, any>
+      const tokenizerModel = mapModelForTokenizer(room?.chatModel)
+      const needEstimate = (u.prompt_tokens == null) || (u.completion_tokens == null) || (u.total_tokens == null)
+      if (needEstimate) {
+        u.prompt_tokens = u.prompt_tokens ?? textTokens(prompt, tokenizerModel)
+        u.completion_tokens = u.completion_tokens ?? textTokens(result.data.text, tokenizerModel)
+        u.total_tokens = u.total_tokens ?? (u.prompt_tokens + u.completion_tokens)
+        u.estimated = true
+      }
     }
 
     // Include final full reasoning content if available
