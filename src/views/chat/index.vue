@@ -14,6 +14,7 @@ import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAuthStore, useChatStore, usePromptStore } from '@/store'
 import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding } from '@/api'
+import { buildExtraBody } from '@/utils/extraBody'
 import { t } from '@/locales'
 import { debounce } from '@/utils/functions/debounce'
 import IconPrompt from '@/icons/Prompt.vue'
@@ -39,6 +40,7 @@ const { uuid } = route.params as { uuid: string }
 const currentChatHistory = computed(() => chatStore.getChatHistoryByCurrentActive)
 const usingContext = computed(() => currentChatHistory?.value?.usingContext ?? true)
 const currentChatModel = computed(() => currentChatHistory?.value?.chatModel ?? 'gpt-3.5-turbo')
+const usingThinking = computed(() => currentChatHistory?.value?.usingThinking ?? false)
 const dataSources = computed(() => chatStore.getChatByUuid(+uuid))
 const conversationList = computed(() => dataSources.value.filter(item => (!item.inversion && !!item.conversationOptions)))
 
@@ -66,6 +68,22 @@ dataSources.value.forEach((item, index) => {
 
 function handleSubmit() {
   onConversation()
+}
+
+function isGeminiThinkingModel(model: string) {
+  const m = (model || '').toLowerCase()
+  return m.includes('gemini') && m.includes('thinking')
+}
+
+async function handleToggleUsingThinking() {
+  if (!currentChatHistory.value)
+    return
+  const next = !usingThinking.value
+  chatStore.setUsingThinking(next, +uuid)
+  if (next)
+    ms.success('已开启思考模式')
+  else
+    ms.warning('已关闭思考模式')
 }
 
 async function onConversation() {
@@ -112,6 +130,8 @@ async function onConversation() {
       loading: true,
       inversion: false,
       error: false,
+      thinking: '',
+      thinkingExpanded: false,
       conversationOptions: null,
       requestOptions: { prompt: message, options: { ...options } },
     },
@@ -120,12 +140,15 @@ async function onConversation() {
 
   try {
     let lastText = ''
+    let lastThinking = ''
     const fetchChatAPIOnce = async () => {
+      const extraBody = buildExtraBody(currentChatModel.value, usingThinking.value)
       await fetchChatAPIProcess<Chat.ConversationResponse>({
         roomId: +uuid,
         uuid: chatUuid,
         prompt: message,
         options,
+        extra_body: extraBody,
         signal: controller.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
@@ -146,6 +169,9 @@ async function onConversation() {
                   estimated: data.detail.usage.estimated || null,
                 }
               : undefined
+            const thinkingPart = (data.thinking ?? (data.detail && (data.detail.thinking ?? undefined)))
+            if (typeof thinkingPart === 'string')
+              lastThinking += thinkingPart
             updateChat(
               +uuid,
               dataSources.value.length - 1,
@@ -155,6 +181,8 @@ async function onConversation() {
                 inversion: false,
                 error: false,
                 loading: true,
+                thinking: lastThinking,
+                thinkingExpanded: false,
                 conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
                 requestOptions: { prompt: message, options: { ...options } },
                 usage,
@@ -175,7 +203,7 @@ async function onConversation() {
           }
         },
       })
-      updateChatSome(+uuid, dataSources.value.length - 1, { loading: false })
+      updateChatSome(+uuid, dataSources.value.length - 1, { loading: false, thinkingExpanded: false })
     }
 
     await fetchChatAPIOnce()
@@ -219,6 +247,7 @@ async function onConversation() {
         inversion: false,
         error: true,
         loading: false,
+        thinkingExpanded: false,
         conversationOptions: null,
         requestOptions: { prompt: message, options: { ...options } },
       },
@@ -259,6 +288,8 @@ async function onRegenerate(index: number) {
       responseCount,
       error: false,
       loading: true,
+      thinking: '',
+      thinkingExpanded: false,
       conversationOptions: null,
       requestOptions: { prompt: message, options: { ...options } },
     },
@@ -266,13 +297,16 @@ async function onRegenerate(index: number) {
 
   try {
     let lastText = ''
+    let lastThinking = ''
     const fetchChatAPIOnce = async () => {
+      const extraBody = buildExtraBody(currentChatModel.value, usingThinking.value)
       await fetchChatAPIProcess<Chat.ConversationResponse>({
         roomId: +uuid,
         uuid: chatUuid || Date.now(),
         regenerate: true,
         prompt: message,
         options,
+        extra_body: extraBody,
         signal: controller.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
@@ -293,6 +327,9 @@ async function onRegenerate(index: number) {
                   estimated: data.detail.usage.estimated || null,
                 }
               : undefined
+            const thinkingPart = (data.thinking ?? (data.detail && (data.detail.thinking ?? undefined)))
+            if (typeof thinkingPart === 'string')
+              lastThinking += thinkingPart
             updateChat(
               +uuid,
               index,
@@ -303,6 +340,8 @@ async function onRegenerate(index: number) {
                 responseCount,
                 error: false,
                 loading: true,
+                thinking: lastThinking,
+                thinkingExpanded: false,
                 conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
                 requestOptions: { prompt: message, options: { ...options } },
                 usage,
@@ -321,7 +360,7 @@ async function onRegenerate(index: number) {
           }
         },
       })
-      updateChatSome(+uuid, index, { loading: false })
+      updateChatSome(+uuid, index, { loading: false, thinkingExpanded: false })
     }
     await fetchChatAPIOnce()
   }
@@ -628,6 +667,8 @@ onUnmounted(() => {
                   :date-time="item.dateTime"
                   :text="item.text"
                   :inversion="item.inversion"
+                  :thinking="item.thinking"
+                  :thinking-expanded="item.thinkingExpanded"
                   :response-count="item.responseCount"
                   :usage="item && item.usage || undefined"
                   :error="item.error"
@@ -672,6 +713,11 @@ onUnmounted(() => {
             <HoverButton v-if="!isMobile" @click="handleToggleUsingContext">
               <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingContext, 'text-[#a8071a]': !usingContext }">
                 <SvgIcon icon="ri:chat-history-line" />
+              </span>
+            </HoverButton>
+            <HoverButton v-if="!isMobile" @click="handleToggleUsingThinking">
+              <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingThinking, 'text-[#a8071a]': !usingThinking }">
+                <SvgIcon icon="ri:brain-line" />
               </span>
             </HoverButton>
             <NSelect

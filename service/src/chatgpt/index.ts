@@ -154,9 +154,13 @@ async function chatReplyProcess(options: RequestOptions) {
     processThreads.push({ userId, abort, messageId })
 
     const conversationId = lastContext?.conversationId ?? crypto.randomUUID()
-    let finalText = ''
+    // Accumulate raw streamed text, and derive final text and reasoning content
+    let rawText = ''
     let finishReason: string | null = null
     let usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; estimated?: boolean } | undefined
+    // Track reasoning content when models expose it as a dedicated field
+    let reasoningFull = ''
+    let lastThinkingLen = 0
 
     const stream = await client.chat.completions.create({
       model,
@@ -164,19 +168,75 @@ async function chatReplyProcess(options: RequestOptions) {
       temperature,
       top_p,
       stream: true,
+      ...(options.extra_body ? { extra_body: options.extra_body } : {}),
     }, { signal: abort.signal, timeout: timeoutMs })
 
     for await (const chunk of stream) {
       const choice = chunk.choices?.[0]
       const delta = choice?.delta?.content ?? ''
-      if (delta) finalText += delta
+      if (delta) rawText += delta
       finishReason = choice?.finish_reason ?? null
+
+      // Prefer dedicated reasoning content if provided by the SDK/model
+      const reasoningChunk = (choice?.delta as any)?.reasoning_content ?? ''
+      if (reasoningChunk) reasoningFull += reasoningChunk
+      // Some providers may only send final message.reasoning_content on the last chunk
+      const reasoningMessage = (choice as any)?.message?.reasoning_content ?? ''
+      if (!reasoningChunk && reasoningMessage)
+        reasoningFull = reasoningMessage
+
+      // Extract reasoning content enclosed within <think>...</think> as a fallback
+      let thinkingText = ''
+      if (!reasoningChunk) {
+        const thinkOpen = rawText.indexOf('<think>')
+        const thinkClose = rawText.indexOf('</think>')
+        if (thinkOpen !== -1) {
+          if (thinkClose !== -1 && thinkClose > thinkOpen) {
+            thinkingText = rawText.substring(thinkOpen + 7, thinkClose)
+          }
+          else {
+            thinkingText = rawText.substring(thinkOpen + 7)
+          }
+        }
+      }
+
+      // Compute final visible text by removing <think>...</think> block (or truncating after <think> if not closed yet)
+      let finalText: string
+      if (!reasoningChunk) {
+        const thinkOpen = rawText.indexOf('<think>')
+        const thinkClose = rawText.indexOf('</think>')
+        if (thinkOpen !== -1) {
+          if (thinkClose !== -1 && thinkClose > thinkOpen) {
+            finalText = rawText.slice(0, thinkOpen) + rawText.slice(thinkClose + 8)
+          }
+          else {
+            finalText = rawText.slice(0, thinkOpen)
+          }
+        }
+        else {
+          finalText = rawText
+        }
+      }
+      else {
+        // When reasoning is separate, visible content stays as-is
+        finalText = rawText
+      }
+
+      // Only send incremental delta of thinking content this turn
+      const thinkingDelta = reasoningChunk
+        ? reasoningChunk
+        : (reasoningMessage
+          ? reasoningMessage
+          : (thinkingText.length > lastThinkingLen ? thinkingText.substring(lastThinkingLen) : ''))
+      if (!reasoningChunk && thinkingText.length > lastThinkingLen)
+        lastThinkingLen = thinkingText.length
 
       const partial: ChatMessage = {
         id: chunk.id,
         conversationId,
         role: 'assistant',
         text: finalText,
+        thinking: thinkingDelta || undefined,
         detail: { choices: [{ finish_reason: finishReason }] },
       }
       process?.(partial)
@@ -187,7 +247,35 @@ async function chatReplyProcess(options: RequestOptions) {
 
     return sendResponse({
       type: 'Success',
-      data: { id: messageId, conversationId, text: finalText, detail: { usage } },
+      data: {
+        id: messageId,
+        conversationId,
+        // On completion, derive final text and full thinking one last time
+        text: (() => {
+          if (!reasoningFull) {
+            const thinkOpen = rawText.indexOf('<think>')
+            const thinkClose = rawText.indexOf('</think>')
+            if (thinkOpen !== -1) {
+              if (thinkClose !== -1 && thinkClose > thinkOpen)
+                return rawText.slice(0, thinkOpen) + rawText.slice(thinkClose + 8)
+              return rawText.slice(0, thinkOpen)
+            }
+          }
+          return rawText
+        })(),
+        thinking: (() => {
+          if (reasoningFull) return reasoningFull
+          const thinkOpen = rawText.indexOf('<think>')
+          const thinkClose = rawText.indexOf('</think>')
+          if (thinkOpen !== -1) {
+            if (thinkClose !== -1 && thinkClose > thinkOpen)
+              return rawText.substring(thinkOpen + 7, thinkClose)
+            return rawText.substring(thinkOpen + 7)
+          }
+          return undefined
+        })(),
+        detail: { usage },
+      },
     })
   }
   catch (error: any) {

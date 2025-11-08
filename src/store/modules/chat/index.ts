@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { getLocalState, setLocalState } from './helper'
 import { router } from '@/router'
-import { fetchClearChat, fetchCreateChatRoom, fetchDeleteChat, fetchDeleteChatRoom, fetchGetChatHistory, fetchGetChatRooms, fetchRenameChatRoom, fetchUpdateChatRoomChatModel, fetchUpdateChatRoomUsingContext } from '@/api'
+import { fetchClearChat, fetchCreateChatRoom, fetchDeleteChat, fetchDeleteChatRoom, fetchGetChatHistory, fetchGetChatRooms, fetchRenameChatRoom, fetchUpdateChatRoomChatModel, fetchUpdateChatRoomUsingContext, fetchUpdateChatRoomUsingThinking } from '@/api'
 
 export const useChatStore = defineStore('chat-store', {
   state: (): Chat.ChatState => getLocalState(),
@@ -39,7 +39,7 @@ export const useChatStore = defineStore('chat-store', {
         this.chat.unshift({ uuid: r.uuid, data: [] })
       }
       if (uuid == null) {
-        await this.addHistory({ title: 'New Chat', uuid: Date.now(), isEdit: false, usingContext: true, chatModel: 'gpt-3.5-turbo' })
+        await this.addHistory({ title: 'New Chat', uuid: Date.now(), isEdit: false, usingContext: true, usingThinking: false, chatModel: 'gpt-3.5-turbo' })
       }
       else {
         this.active = uuid
@@ -94,6 +94,15 @@ export const useChatStore = defineStore('chat-store', {
       this.recordState()
     },
 
+    async setUsingThinking(using: boolean, roomId: number) {
+      await fetchUpdateChatRoomUsingThinking(using, roomId)
+      const index = this.history.findIndex(item => item.uuid === roomId)
+      if (index !== -1) {
+        this.history[index].usingThinking = using
+        this.recordState()
+      }
+    },
+
     async setChatModel(model: string, roomId: number) {
       await fetchUpdateChatRoomChatModel(model, roomId)
       this.recordState()
@@ -123,7 +132,7 @@ export const useChatStore = defineStore('chat-store', {
       this.chat.splice(index, 1)
 
       if (this.history.length === 0) {
-        await this.addHistory({ title: 'New Chat', chatModel: 'gpt-3.5-turbo', uuid: Date.now(), isEdit: false, usingContext: true })
+        await this.addHistory({ title: 'New Chat', chatModel: 'gpt-3.5-turbo', uuid: Date.now(), isEdit: false, usingContext: true, usingThinking: false })
         return
       }
 
@@ -171,7 +180,7 @@ export const useChatStore = defineStore('chat-store', {
         if (this.history.length === 0) {
           const uuid = Date.now()
           fetchCreateChatRoom(chat.text, 'gpt-3.5-turbo', uuid)
-          this.history.push({ uuid, title: chat.text, isEdit: false, usingContext: true, chatModel: 'gpt-3.5-turbo' })
+          this.history.push({ uuid, title: chat.text, isEdit: false, usingContext: true, usingThinking: false, chatModel: 'gpt-3.5-turbo' })
           this.chat.push({ uuid, data: [chat] })
           this.active = uuid
           this.recordState()

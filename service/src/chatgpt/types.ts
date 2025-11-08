@@ -6,6 +6,8 @@ export interface ChatMessage {
   parentMessageId?: string
   role: 'user' | 'assistant' | 'system'
   text: string
+  // Optional incremental reasoning content for streaming updates
+  thinking?: string
   detail?: {
     choices: Array<{ finish_reason?: string | null }>
     usage?: {
@@ -24,6 +26,7 @@ export interface RequestOptions {
   systemMessage?: string
   temperature?: number
   top_p?: number
+  extra_body?: Record<string, any>
   user: UserInfo
   messageId: string
   tryCount: number

@@ -16,6 +16,7 @@ export function fetchChatAPIProcess<T = any>(
     regenerate?: boolean
     prompt: string
     options?: { conversationId?: string; parentMessageId?: string }
+    extra_body?: Record<string, any>
     signal?: GenericAbortSignal
     onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void },
 ) {
@@ -27,6 +28,7 @@ export function fetchChatAPIProcess<T = any>(
     regenerate: params.regenerate || false,
     prompt: params.prompt,
     options: params.options,
+    extra_body: params.extra_body,
   }
 
   data = {
@@ -170,6 +172,13 @@ export function fetchUpdateChatRoomPrompt<T = any>(prompt: string, roomId: numbe
 export function fetchUpdateChatRoomUsingContext<T = any>(using: boolean, roomId: number) {
   return post<T>({
     url: '/room-context',
+    data: { using, roomId },
+  })
+}
+
+export function fetchUpdateChatRoomUsingThinking<T = any>(using: boolean, roomId: number) {
+  return post<T>({
+    url: '/room-thinking',
     data: { using, roomId },
   })
 }

@@ -9,6 +9,8 @@ declare namespace Chat {
     responseCount?: number
     error?: boolean
     loading?: boolean
+    thinking?: string
+    thinkingExpanded?: boolean
     conversationOptions?: ConversationRequest | null
     requestOptions: { prompt: string; options?: ConversationRequest | null }
     usage?: {
@@ -27,6 +29,7 @@ declare namespace Chat {
     all?: boolean
     prompt?: string
     usingContext: boolean
+    usingThinking?: boolean
     chatModel: string
   }
 

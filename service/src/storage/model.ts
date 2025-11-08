@@ -70,7 +70,7 @@ export const chatModelOptions = [
 
   // Google 系列
   'gemini-1.5-pro', 'gemini-2.0-flash-exp', 'gemini-2.0-pro-exp', 'gemini-2.0-flash',
-  'gemini-2.0-flash-thinking-exp', 'gemini-exp-1206',
+  'gemini-2.0-flash-thinking-exp', 'gemini-exp-1206', 'gemini-2.5-flash',
 
   // Claude 系列
   'claude-2', 'claude-3-sonnet', 'claude-3-opus', 'claude-3-haiku','claude-3.5-sonnet',
@@ -124,6 +124,7 @@ export class ChatRoom {
   title: string
   prompt: string = ''
   usingContext: boolean
+  usingThinking?: boolean
   status: Status = Status.Normal
   chatModel: string
   constructor(userId: string, title: string, roomId: number, chatModel: string) {
@@ -131,6 +132,7 @@ export class ChatRoom {
     this.title = title
     this.roomId = roomId
     this.usingContext = true
+    this.usingThinking = false
     this.chatModel = chatModel
   }
 }
@@ -143,6 +145,7 @@ export class ChatOptions {
   completion_tokens: number | undefined = undefined
   total_tokens: number | undefined = undefined
   estimated: boolean | undefined = undefined
+  thinking?: string
 
   constructor(parentMessageId?: string, messageId?: string, conversationId?: string) {
     if (parentMessageId) this.parentMessageId = parentMessageId

@@ -34,6 +34,7 @@ import {
   updateRoomChatModel,
   updateRoomPrompt,
   updateRoomUsingContext,
+  updateRoomUsingThinking,
   updateUser,
   updateUserInfo,
   updateUserPassword,
@@ -77,6 +78,7 @@ router.get('/chatrooms', auth, async (req, res) => {
         isEdit: false,
         prompt: r.prompt,
         usingContext: r.usingContext === undefined ? true : r.usingContext,
+        usingThinking: r.usingThinking === undefined ? false : r.usingThinking,
         chatModel: (r.chatModel === undefined || r.chatModel === null) ? 'gpt-3.5-turbo' : r.chatModel,
       }
       result.push(item)
@@ -164,6 +166,23 @@ router.post('/room-context', auth, async (req, res) => {
   }
 })
 
+// 更新聊天室思考开关
+router.post('/room-thinking', auth, async (req, res) => {
+  try {
+    const userId = req.headers.userId as string
+    const { using, roomId } = req.body as { using: boolean; roomId: number }
+    const success = await updateRoomUsingThinking(userId, roomId, using)
+    if (success)
+      res.send({ status: 'Success', message: 'Saved successfully', data: null })
+    else
+      res.send({ status: 'Fail', message: 'Saved Failed', data: null })
+  }
+  catch (error) {
+    console.error(error)
+    res.send({ status: 'Fail', message: 'Rename error', data: null })
+  }
+})
+
 router.post('/room-delete', auth, async (req, res) => {
   try {
     const userId = req.headers.userId as string
@@ -226,6 +245,8 @@ router.get('/chat-history', auth, async (req, res) => {
           error: false,
           loading: false,
           responseCount: (c.previousResponse?.length ?? 0) + 1,
+          thinking: c.options?.thinking || '',
+          thinkingExpanded: false,
           conversationOptions: {
             parentMessageId: c.options.messageId,
             conversationId: c.options.conversationId,
@@ -289,6 +310,8 @@ router.get('/chat-response-history', auth, async (req, res) => {
         error: false,
         loading: false,
         responseCount: (chat.previousResponse?.length ?? 0) + 1,
+        thinking: response.options?.thinking || '',
+        thinkingExpanded: false,
         conversationOptions: {
           parentMessageId: response.options.messageId,
           conversationId: response.options.conversationId,
@@ -360,7 +383,7 @@ router.post('/chat-clear', auth, async (req, res) => {
 router.post('/chat-process', [auth, limiter], async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
-  let { roomId, uuid, regenerate, prompt, options = {}, systemMessage, temperature, top_p } = req.body as RequestProps
+  let { roomId, uuid, regenerate, prompt, options = {}, extra_body, systemMessage, temperature, top_p } = req.body as RequestProps
   const userId = req.headers.userId as string
   const room = await getChatRoom(userId, roomId)
   if (room == null)
@@ -394,6 +417,8 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
           id: chat.id,
           conversationId: chat.conversationId,
           text: chat.text,
+          // Stream incremental reasoning content if provided
+          ...(chat.thinking ? { thinking: chat.thinking } : {}),
           detail: {
             choices: [
               {
@@ -411,6 +436,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       systemMessage,
       temperature,
       top_p,
+      extra_body,
       user,
       messageId: message.id.toString(),
       tryCount: 0,
@@ -429,6 +455,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       result.data.detail.usage.estimated = true
     }
 
+    // Include final full reasoning content if available
     res.write(`\n${JSON.stringify(result.data)}`)
   }
   catch (error) {
@@ -455,14 +482,17 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
           result.data.id,
           result.data.conversationId,
           result.data.detail?.usage as UsageResponse,
-          previousResponse as [])
+          previousResponse as [],
+          (result.data as any).thinking as string)
       }
       else {
         await updateChat(message.id as unknown as string,
           result.data.text,
           result.data.id,
           result.data.conversationId,
-          result.data.detail?.usage as UsageResponse)
+          result.data.detail?.usage as UsageResponse,
+          undefined,
+          (result.data as any).thinking as string)
       }
 
       if (result.data.detail?.usage) {

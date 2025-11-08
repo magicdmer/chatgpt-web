@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { NButton, NButtonGroup, NDropdown, NPopover, NSpace, useMessage } from 'naive-ui'
 import AvatarComponent from './Avatar.vue'
 import TextComponent from './Text.vue'
+import ThinkingBox from './ThinkingBox.vue'
 import { SvgIcon } from '@/components/common'
 import { useIconRender } from '@/hooks/useIconRender'
 import { t } from '@/locales'
@@ -15,6 +16,8 @@ interface Props {
   inversion?: boolean
   error?: boolean
   loading?: boolean
+  thinking?: string
+  thinkingExpanded?: boolean
   responseCount?: number
   usage?: {
     completion_tokens: number
@@ -174,14 +177,21 @@ async function handlePreviousResponse(next: number) {
         class="flex items-end gap-1 mt-2"
         :class="[inversion ? 'flex-row-reverse' : 'flex-row']"
       >
-        <TextComponent
+        <div class="flex flex-col gap-2" :class="[inversion ? 'items-end' : 'items-start']" style="flex:1;">
+          <ThinkingBox v-if="!inversion && props.thinking && props.thinking.length > 0"
+            :content="props.thinking"
+            :expanded="props.thinkingExpanded"
+            :loading="props.loading"
+          />
+          <TextComponent
           ref="textRef"
           :inversion="inversion"
           :error="error"
           :text="text"
           :loading="loading"
           :as-raw-text="asRawText"
-        />
+          />
+        </div>
         <div class="flex flex-col">
           <button
             v-if="!inversion"

@@ -6,6 +6,7 @@ export interface RequestProps {
   regenerate: boolean
   prompt: string
   options?: ChatContext
+  extra_body?: Record<string, any>
   systemMessage: string
   temperature?: number
   top_p?: number

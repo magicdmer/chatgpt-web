@@ -26,6 +26,7 @@ interface ChatRoomDBRow {
   title: string
   prompt?: string
   usingContext: boolean
+  usingThinking?: boolean
   status: number
   chatModel: string
 }
@@ -105,6 +106,11 @@ db.serialize(() => {
     status INTEGER DEFAULT 0,
     chatModel TEXT DEFAULT 'gpt-3.5-turbo'
   )`)
+
+  // 尝试为 chat_room 增加 usingThinking 字段（若已存在则忽略错误）
+  db.run('ALTER TABLE chat_room ADD COLUMN usingThinking BOOLEAN DEFAULT 0', [], (err) => {
+    // ignore error if column already exists
+  })
 
   // 创建用户表
   db.run(`CREATE TABLE IF NOT EXISTS user (
@@ -241,6 +247,7 @@ export async function getChatRooms(userId: string): Promise<ChatRoom[]> {
     room.id = row.id
     room.prompt = row.prompt || ''
     room.usingContext = row.usingContext
+    room.usingThinking = row.usingThinking ?? false
     room.status = row.status
     room.chatModel = row.chatModel
     return room
@@ -846,14 +853,15 @@ export async function getChat(roomId: number, uuid: number): Promise<ChatInfo | 
   return chatInfo
 }
 
-export async function updateChat(chatId: string, response: string, messageId: string, conversationId: string, usage: UsageResponse, previousResponse?: []) {
+export async function updateChat(chatId: string, response: string, messageId: string, conversationId: string, usage: UsageResponse, previousResponse?: [], thinking?: string) {
   const options = {
     messageId,
     conversationId,
     prompt_tokens: usage?.prompt_tokens,
     completion_tokens: usage?.completion_tokens,
     total_tokens: usage?.total_tokens,
-    estimated: usage?.estimated
+    estimated: usage?.estimated,
+    ...(thinking ? { thinking } : {})
   }
 
   const queries = [{
@@ -867,6 +875,17 @@ export async function updateChat(chatId: string, response: string, messageId: st
   }]
 
   return runTransaction(queries)
+}
+
+// 更新聊天室思考开关
+export async function updateRoomUsingThinking(userId: string, roomId: number, using: boolean): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const sql = 'UPDATE chat_room SET usingThinking = ? WHERE userId = ? AND roomId = ?'
+    db.run(sql, [using, userId, roomId], function(err) {
+      if (err) reject(err)
+      else resolve(this.changes > 0)
+    })
+  })
 }
 
 function initUserInfo(userInfo: UserInfo) {
