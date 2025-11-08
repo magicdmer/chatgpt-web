@@ -81,6 +81,9 @@ const db = new Database('./data/chatgpt.db')
 
 // 初始化数据库表
 db.serialize(() => {
+  // 启用 WAL 和适度同步提升并发读写稳定性
+  db.run('PRAGMA journal_mode=WAL')
+  db.run('PRAGMA synchronous=NORMAL')
   // 创建聊天记录表
   db.run(`CREATE TABLE IF NOT EXISTS chat (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

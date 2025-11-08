@@ -717,7 +717,7 @@ onUnmounted(() => {
             </HoverButton>
             <HoverButton v-if="!isMobile" @click="handleToggleUsingThinking">
               <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingThinking, 'text-[#a8071a]': !usingThinking }">
-                <SvgIcon icon="ri:brain-line" />
+                <SvgIcon icon="ri:lightbulb-line" />
               </span>
             </HoverButton>
             <NSelect

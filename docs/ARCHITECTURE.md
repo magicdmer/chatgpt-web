@@ -55,6 +55,7 @@
 - 接口调用：
   - `src/utils/request/axios.ts` 设置 `baseURL = import.meta.env.VITE_GLOB_API_URL`，请求拦截自动附加 `Authorization`；响应拦截对非 `200` 抛错。
   - `src/api/index.ts` 统一封装 REST 方法（房间 CRUD、聊天流程、用户与配置管理、审计与邮件等）。
+  - 流式响应与思考：聊天接口以服务端流方式返回增量内容，并在 `options.thinking`/`thinking` 字段回传“思考”片段；房间级开关通过 `/room-thinking` 路由控制。
 - UI 框架与布局：
   - 使用 `naive-ui`，根组件 `App.vue` 通过 `NConfigProvider` 注入主题与语言；聊天页面由 `views/chat/layout` 布局（`Sider` + 内容区），移动端自适应。
 - i18n：
@@ -70,6 +71,7 @@
   - `GET /chat-response-history`（按索引回溯历史响应）
   - `GET /chat-history?roomId=...&lastId=...`（分页拉取聊天记录）
 - 房间管理：`/room-create`、`/room-rename`、`/room-prompt`、`/room-context`、`/room-chatmodel`、`/room-delete`、`/chatrooms`
+  - 思考开关：`/room-thinking`（开启/关闭当前房间的“思考”内容回传）
 - 用户与会话：`/session`、`/user-login`、`/user-register`、`/user-info`、`/users`、`/user-status`、`/user-edit`、`/verify`、`/verifyadmin`
 - 配置与运维：`/setting-base`、`/setting-site`、`/setting-mail`、`/mail-test`、`/setting-audit`、`/audit-test`、`/setting-keys`、`/setting-key-status`、`/setting-key-upsert`、`/statistics/by-day`
 
@@ -86,11 +88,13 @@
 - ChatGPT 调用：
   - `service/src/chatgpt/index.ts` 使用官方 `openai` SDK，支持 `SocksProxyAgent`/`HttpsProxyAgent` 与自定义 `baseURL`；
   - 图片生成通过自建 `new-api` 中转服务，返回 `url` 并在前端展示；
-  - 维护 `conversationId`/`parentMessageId` 上下文，通过 `sqlite` 记录消息与 `usage`；
+  - 流式输出：对话以流式推送增量 `content`，并在检测到“思考”内容时增量回传 `thinking` 片段（Gemini Thinking 等模型受控于房间级开关）；
+  - 维护 `conversationId`/`parentMessageId` 上下文，通过 `sqlite` 记录消息与 `usage`（`thinking` 内容保存在 `chat.options` 中）；
   - 支持第三方文本审核（默认 `baidu`），可配置请求/响应审核维度。
 - 存储层：
   - `service/src/storage/sqlite.ts` 使用 `sqlite3`，启动时建表：`chat`、`chat_room`、`user`、`config`、`chat_usage`、`key_config`；数据库文件位于 `./data/chatgpt.db`。
   - 业务方法覆盖：房间与聊天 CRUD、用户管理与统计、配置与 API Key 管理等。
+  - 字段补充：`chat_room` 增加 `usingThinking`（房间级“思考”开关）；`chat` 的“思考”内容以 JSON 形式存于 `options.thinking`。
 - 配置缓存：
   - `service/src/storage/config.ts` 负责从 DB 或环境变量生成 `Config`，并维护内存缓存与过期；同时提供 `getApiKeys()` 与 Key 的筛选逻辑（角色/模型）。
 
@@ -131,6 +135,7 @@
 1. 前端 `api/index.ts` 发起请求（附带 `Authorization`），`axios` 按 `VITE_GLOB_API_URL` 或开发代理转发。
 2. 后端 `index.ts` 通过 `auth/rootAuth/limiter` 等中间件校验后进入路由处理。
 3. 聊天请求进入 `chatgpt` 模块，按配置与上下文与代理设置调用 ChatGPT；响应边接收边推送（支持进度事件），并写入 `sqlite`（消息与使用量）。
+   同时，对于支持“思考”输出的模型，增量回传 `thinking` 片段并最终在 `options.thinking` 中保留完整内容。
 4. 前端 `store` 更新 UI 状态；`views/chat` 以消息列表渲染输出，支持回溯与中止。
 
 ## 扩展与改造建议
