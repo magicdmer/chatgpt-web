@@ -8,6 +8,8 @@ export default {
     deleteSuccess: '删除成功',
     save: '保存',
     test: '测试',
+    search: '搜索',
+    refresh: '刷新',
     saveSuccess: '保存成功',
     reset: '重置',
     action: '操作',

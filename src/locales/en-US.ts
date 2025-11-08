@@ -8,6 +8,8 @@ export default {
     deleteSuccess: 'Delete Success',
     save: 'Save',
     test: 'Test',
+    search: 'Search',
+    refresh: 'Refresh',
     saveSuccess: 'Save Success',
     reset: 'Reset',
     action: 'Action',

@@ -4,7 +4,7 @@ import * as dotenv from 'dotenv'
 import { textTokens } from 'gpt-token'
 import type { RequestProps } from './types'
 import type { ChatMessage } from './chatgpt'
-import { abortChatProcess, chatConfig, chatReplyProcess, containsSensitiveWords, initAuditService } from './chatgpt'
+import { abortChatProcess, chatConfig, chatReplyProcess, containsSensitiveWords, initAuditService, listModelsForKey } from './chatgpt'
 import { auth, getUserId } from './middleware/auth'
 import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig } from './storage/config'
 import { Status, UsageResponse, UserRole, chatModelOptions } from './storage/model'
@@ -1015,7 +1015,7 @@ router.post('/setting-key-status', rootAuth, async (req, res) => {
   }
 })
 
-router.post('/setting-key-upsert', rootAuth, async (req, res) => {
+  router.post('/setting-key-upsert', rootAuth, async (req, res) => {
   try {
     const keyConfig = req.body as KeyConfig
     if (keyConfig.id !== undefined)
@@ -1027,7 +1027,52 @@ router.post('/setting-key-upsert', rootAuth, async (req, res) => {
   catch (error) {
     res.send({ status: 'Fail', message: error.message, data: null })
   }
-})
+  })
+
+  // 获取指定密钥下的模型列表（管理员）
+  router.get('/setting-key-models', rootAuth, async (req, res) => {
+    try {
+      const id = String(req.query.id || '')
+      const directKey = String(req.query.key || '')
+      const apiBaseUrl = String(req.query.apiBaseUrl || '')
+
+      let targetKey: KeyConfig | null = null
+
+      // 优先使用前端直接传入的 key/apiBaseUrl（无需查询数据库）
+      if (directKey) {
+        targetKey = {
+          id: undefined,
+          key: directKey,
+          apiBaseUrl,
+          chatModels: [],
+          userRoles: [],
+          status: 0,
+          remark: '',
+        } as KeyConfig
+      }
+      else if (id) {
+        // 兼容旧逻辑：根据 id 查询
+        const { getKeys } = await import('./storage/sqlite')
+        const result = await getKeys()
+        const raw = result.keys.find((k: any) => String(k.id) === id)
+        if (!raw) {
+          res.send({ status: 'Fail', message: 'Key not found' })
+          return
+        }
+        targetKey = raw as KeyConfig
+      }
+      else {
+        res.send({ status: 'Fail', message: 'Missing key or id' })
+        return
+      }
+
+      const models = await listModelsForKey(targetKey)
+      res.send({ status: 'Success', data: models })
+    }
+    catch (error: any) {
+      res.send({ status: 'Fail', message: error?.message || String(error) })
+    }
+  })
 
 router.post('/statistics/by-day', auth, async (req, res) => {
   try {

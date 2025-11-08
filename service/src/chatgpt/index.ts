@@ -48,6 +48,19 @@ export async function createClient(key: KeyConfig) {
   return new OpenAI({ apiKey: key.key, baseURL, fetch: customFetch ?? undefined })
 }
 
+// 列出给定密钥/基地地址下的模型列表，用于前端动态刷新
+export async function listModelsForKey(key: KeyConfig): Promise<string[]> {
+  const client = await createClient(key)
+  try {
+    const list = await client.models.list()
+    const data: any[] = (list as any)?.data ?? []
+    return data.map((m: any) => m.id).filter((id: string) => typeof id === 'string')
+  }
+  catch (err) {
+    return []
+  }
+}
+
 async function draw(url: string, key: string, prompt: string, model: string): Promise<string> {
   let jsondata = {}
   if (model === 'dall-e-2') {

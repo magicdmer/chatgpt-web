@@ -60,55 +60,36 @@ export class UserOption {
 
 export const chatModelOptions = [
   // GPT 系列
-  'gpt-3.5-turbo', 'gpt-4', 'gpt-4-32k', 'gpt-4-0613', 'gpt-4-32k-0613', 'gpt-4-all', 'gpt-4-gizmo',
-  'gpt-4-turbo', 
-
-  // OpenAI 系列 
-  'gpt-4o', 'gpt-4o-all', 'o1-preview',
+  'gpt-3.5-turbo', 'gpt-4-gizmo', 'gpt-4o', 'gpt-4o-all', 'gpt-5', 'o1-preview',
   'o1', 'o1-mini', 'o3-mini', 'o3-mini-low', 'o3-mini-medium', 'o3-mini-high',
   'dall-e-3',
 
   // Google 系列
-  'gemini-1.5-pro', 'gemini-2.0-flash-exp', 'gemini-2.0-pro-exp', 'gemini-2.0-flash',
-  'gemini-2.0-flash-thinking-exp', 'gemini-exp-1206', 'gemini-2.5-flash',
+  'gemini-2.0-flash-exp', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro',
 
   // Claude 系列
-  'claude-2', 'claude-3-sonnet', 'claude-3-opus', 'claude-3-haiku','claude-3.5-sonnet',
+  'claude-3.5-sonnet', 'claude-3.7-sonnet', 'claude-4-sonnet','claude-4.5-sonnet',
 
   // GLM 系列
-  'glm-4-air', 'glm-4-airx', 'glm-4', 'glm-4-flash', 'glm-4-0520', 'glm-4-plus', 'codegeex-4',
+  'glm-4-air', 'glm-4-airx', 'glm-4', 'glm-4-flash', 'glm-4-flashx', 'glm-4-0520', 
+  'glm-4-plus', 'glm-4.5', 'glm-4.5-air', 'glm-4.5-flash', 'codegeex-4', 
   'glm-zero-preview',
 
-  // Qwen 系列
-  'qwen-turbo', 'qwen-plus', 'qwen-max',
-
   // Yi 系列
-  'yi-large', 'yi-medium', 'yi-medium-200k', 'yi-vl-plus', 'yi-spark', 'yi-large-rag',
-  'yi-large-turbo', 'yi-lightning', 'yi-lightning-lite',
-
-  // SparkDesk 系列
-  'SparkDesk-v3.5', 'SparkDesk-v4.0',
+  'yi-lightning',
 
   // Command 系列
-  'command-r', 'command-r-plus', 'command-r-plus-online',
+  'command-a-03-2025',
 
   // Moonshot 系列
   'moonshot-v1-auto',
-
-  // 秘塔AI
-  'concise', 'detail', 'research',
   
-  // Step 系列
-  'step-1-32k', 'step-1-200k', 'step-2-16k', 'step-2-16k-exp', 'step-2-mini',
-
   // DeepSeek 系列
-  'deepseek-chat', 'deepseek-coder', 'deepseek-r1',
+  'deepseek-chat', 'deepseek-coder', 'deepseek-reasoner',
+  'deepseek-r1', 'deepseek-v3', 
 
   // Grok 系列
-  'grok-3',
-
-  // 其他
-  'qwen2.5-72b-instruct', 'deepseek-v3', 'llama-3.3-70B-instruct',
+  'grok-3', 'grok-4',
 ].map((model: string) => {
   return {
     label: model,

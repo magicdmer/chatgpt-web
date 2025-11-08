@@ -183,6 +183,14 @@ export function fetchUpdateChatRoomUsingThinking<T = any>(using: boolean, roomId
   })
 }
 
+// 管理员：获取指定密钥的 OpenAI 模型列表（优先使用前端传入的 key/apiBaseUrl）
+export function fetchOpenAIModels<T = any>(payload: { key: string; apiBaseUrl?: string } | { id: string }) {
+  return get<T>({
+    url: '/setting-key-models',
+    data: payload,
+  })
+}
+
 export function fetchUpdateChatRoomChatModel<T = any>(model: string, roomId: number) {
   return post<T>({
     url: '/room-chatmodel',

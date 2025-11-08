@@ -2,8 +2,9 @@
 import { h, onMounted, reactive, ref } from 'vue'
 import { NButton, NDataTable, NInput, NModal, NSelect, NSpace, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
 import { KeyConfig, Status, UserRole, userRoleOptions } from './model'
-import { fetchGetKeys, fetchUpdateApiKeyStatus, fetchUpsertApiKey } from '@/api'
+import { fetchGetKeys, fetchOpenAIModels, fetchUpdateApiKeyStatus, fetchUpsertApiKey } from '@/api'
 import { t } from '@/locales'
+import { ss } from '@/utils/storage'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAuthStore } from '@/store'
 
@@ -16,6 +17,78 @@ const loading = ref(false)
 const show = ref(false)
 const handleSaving = ref(false)
 const keyConfig = ref(new KeyConfig('', '', [], [], ''))
+const MODELS_LOCAL_NAME = 'modelsStorage'
+const modelOptions = ref(authStore.session?.allChatModels || [])
+function buildModelsNamespace(key?: string, baseUrl?: string) {
+  const k = (key ?? '').trim()
+  const b = (baseUrl ?? '').trim()
+  if (!k)
+    return null
+  // 统一移除末尾斜杠，避免 `.../v1` 与 `.../v1/` 命名空间不一致
+  const normalizedB = b ? b.replace(/\/+$/, '') : '__default_base__'
+  return `${normalizedB}__${k}`
+}
+function getModelsCache(): Record<string, any[]> {
+  const val: any = ss.get(MODELS_LOCAL_NAME)
+  if (Array.isArray(val))
+    return { __legacy__: val }
+  return val || {}
+}
+function setModelsCache(ns: string, options: any[]) {
+  const cache = getModelsCache()
+  cache[ns] = options
+  ss.set(MODELS_LOCAL_NAME, cache)
+}
+function getCachedOptions(ns: string): any[] | null {
+  const cache = getModelsCache()
+  return cache[ns] || null
+}
+// 下拉内置过滤函数：不区分大小写匹配 label/value
+const filterSelectOption = (pattern: string, option: any) => {
+  const text = String(option.label ?? option.value)
+  return text.toLowerCase().includes(pattern.toLowerCase())
+}
+// 刷新当前 Key 的模型列表
+const refreshingModels = ref(false)
+const MIN_SPIN_MS = 400
+const handleRefreshModels = async () => {
+  if (!keyConfig.value?.key) {
+    ms.warning('请先输入 API Key')
+    return
+  }
+  let t0 = 0
+  try {
+    refreshingModels.value = true
+    t0 = Date.now()
+    // 刷新开始时清空旧的列表，避免旧数据闪烁
+    modelOptions.value = []
+    const res: any = await (fetchOpenAIModels as any)({ key: keyConfig.value.key, apiBaseUrl: keyConfig.value.apiBaseUrl })
+    const models: string[] = (res?.data as any) || []
+    if (!models.length) {
+      ms.warning('未拉取到模型或拉取失败')
+      return
+    }
+    // 覆盖下拉选项为新列表，保持选中值在新列表中
+    const options = models.map(m => ({ label: m, key: m, value: m }))
+    modelOptions.value = options
+    // 命名空间缓存：按 apiKey + baseUrl 存储独立的模型列表
+    const ns = buildModelsNamespace(keyConfig.value.key, keyConfig.value.apiBaseUrl)
+    if (ns)
+      setModelsCache(ns, options)
+    keyConfig.value.chatModels = (keyConfig.value.chatModels || []).filter((m: string) => models.includes(m))
+    ms.success(`已刷新模型列表（${models.length}）`)
+  }
+  catch (e: any) {
+    ms.error(e?.message || String(e))
+  }
+  finally {
+    const elapsed = Date.now() - t0
+    const wait = MIN_SPIN_MS - elapsed
+    if (wait > 0)
+      await new Promise(resolve => setTimeout(resolve, wait))
+    refreshingModels.value = false
+  }
+}
 
 const keys = ref([])
 const columns = [
@@ -206,11 +279,23 @@ async function handleUpdateKeyConfig() {
 
 function handleNewKey() {
   keyConfig.value = new KeyConfig('', '', [], [], '')
+  // 初次编辑或新建默认使用内置全量模型
+  modelOptions.value = authStore.session?.allChatModels || []
   show.value = true
 }
 
 function handleEditKey(key: KeyConfig) {
   keyConfig.value = key
+  // 打开编辑时按 apiKey+baseUrl 读取命名空间缓存；
+  // 若命名空间未命中且存在旧版全局缓存，则回退到旧缓存；否则回退到内置全量列表
+  const ns = buildModelsNamespace(key.key, key.apiBaseUrl)
+  let cached = ns ? getCachedOptions(ns) : null
+  if (!cached) {
+    const legacy = getCachedOptions('__legacy__')
+    if (legacy)
+      cached = legacy
+  }
+  modelOptions.value = cached || authStore.session?.allChatModels || []
   show.value = true
 }
 
@@ -268,13 +353,32 @@ onMounted(async () => {
         <div class="flex items-center space-x-4">
           <span class="flex-shrink-0 w-[100px]">{{ $t('setting.chatModels') }}</span>
           <div class="flex-1">
-            <NSelect
-              style="width: 100%"
-              multiple
-              :value="keyConfig.chatModels"
-              :options="authStore.session?.allChatModels"
-              @update-value="value => keyConfig.chatModels = value"
-            />
+            <div class="flex items-center space-x-2">
+              <NSelect
+                style="width: 100%"
+                multiple
+                filterable
+                :filter="filterSelectOption"
+                :value="keyConfig.chatModels"
+                :options="modelOptions"
+                @update-value="value => keyConfig.chatModels = value"
+              />
+              <NButton
+                class="justify-center min-w-[72px]"
+                type="primary"
+                :disabled="!keyConfig.key || refreshingModels"
+                @click="handleRefreshModels"
+              >
+                <template v-if="refreshingModels">
+                  <span class="inline-flex items-center justify-center w-full">
+                    <span class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                  </span>
+                </template>
+                <template v-else>
+                  {{ $t('common.refresh') || '刷新' }}
+                </template>
+              </NButton>
+            </div>
           </div>
         </div>
         <div class="flex items-center space-x-4">
