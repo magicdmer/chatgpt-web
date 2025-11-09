@@ -51,7 +51,6 @@ const inputRef = ref<Ref | null>(null)
 const showPrompt = ref(false)
 
 let loadingms: MessageReactive
-let allmsg: MessageReactive
 let prevScrollTop: number
 
 // 添加PromptStore
