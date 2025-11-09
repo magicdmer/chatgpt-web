@@ -525,10 +525,7 @@ async function loadMoreMessage(event: any) {
       },
     )
   }, () => {
-    allmsg && allmsg.destroy()
-    allmsg = ms.warning('没有更多了', {
-      duration: 1000,
-    })
+    // 移除“没有更多了”的提示，不做任何操作
   })
 }
 
