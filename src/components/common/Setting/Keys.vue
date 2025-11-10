@@ -51,7 +51,7 @@ const filterSelectOption = (pattern: string, option: any) => {
 // 刷新当前 Key 的模型列表
 const refreshingModels = ref(false)
 const MIN_SPIN_MS = 400
-const handleRefreshModels = async () => {
+  const handleRefreshModels = async () => {
   if (!keyConfig.value?.key) {
     ms.warning('请先输入 API Key')
     return
@@ -77,6 +77,15 @@ const handleRefreshModels = async () => {
       setModelsCache(ns, options)
     keyConfig.value.chatModels = (keyConfig.value.chatModels || []).filter((m: string) => models.includes(m))
     ms.success(`已刷新模型列表（${models.length}）`)
+    // 刷新成功后同步全局会话（仅更新全局，不覆盖本地下拉）
+    // 这样可以保证当前编辑界面的下拉立即展示刚拉取到的模型，
+    // 同时聊天页会基于新的会话数据更新其下拉选项。
+    try {
+      await authStore.getSession()
+    }
+    catch (e) {
+      // 会话刷新失败不影响当前页面使用刚刷新出的 options
+    }
   }
   catch (e: any) {
     ms.error(e?.message || String(e))
@@ -268,6 +277,8 @@ async function handleUpdateKeyConfig() {
   handleSaving.value = true
   try {
     await fetchUpsertApiKey(keyConfig.value)
+    // 保存成功后刷新会话，确保聊天页的模型下拉（基于 chatModels）立即包含新增模型
+    await authStore.getSession()
     await handleGetKeys(pagination.page)
     show.value = false
   }

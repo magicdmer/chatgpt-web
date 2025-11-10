@@ -622,13 +622,15 @@ router.post('/config', rootAuth, async (req, res) => {
   }
 })
 
-router.post('/session', async (req, res) => {
-  try {
-    const config = await getCacheConfig()
-    const hasAuth = config.siteConfig.loginEnabled
-    const allowRegister = (await getCacheConfig()).siteConfig.registerEnabled
-    const userId = await getUserId(req)
-    const chatModels: {
+  router.post('/session', async (req, res) => {
+    try {
+      const config = await getCacheConfig()
+      const hasAuth = config.siteConfig.loginEnabled
+      const allowRegister = config.siteConfig.registerEnabled
+      const userId = await getUserId(req)
+      // 在未登录场景下也需要定义该变量，避免后续引用未定义
+      let dynamicAllModels: string[] = []
+  const chatModels: {
       label
       key: string
       value: string
@@ -645,31 +647,25 @@ router.post('/session', async (req, res) => {
         roles: user.roles,
       }
 
-      const keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles))
+      const keys = (await getCacheApiKeys())
+        .filter(d => hasAnyRole(d.userRoles, user.roles))
         .filter(d => d.status !== Status.Disabled)
 
-      const count: { key: string; count: number }[] = []
-      chatModelOptions.forEach((chatModel) => {
-        keys.forEach((key) => {
-          if (key.chatModels.includes(chatModel.value)) {
-            if (count.filter(d => d.key === chatModel.value).length <= 0) {
-              count.push({ key: chatModel.value, count: 1 })
-            }
-            else {
-              const thisCount = count.filter(d => d.key === chatModel.value)[0]
-              thisCount.count++
-            }
-          }
-        })
+      // 计算所有可用模型的并集（来自数据库持久化），为空时回退到内置静态列表
+      const availableUnion = new Set<string>()
+      keys.forEach((k) => {
+        (k.availableModels || []).forEach((m) => availableUnion.add(m))
       })
-      count.forEach((c) => {
-        const thisChatModel = chatModelOptions.filter(d => d.value === c.key)[0]
-        const suffix = c.count > 1 ? ` (${c.count})` : ''
-        chatModels.push({
-          label: `${thisChatModel.label}${suffix}`,
-          key: c.key,
-          value: c.key,
-        })
+      dynamicAllModels = Array.from(availableUnion)
+
+      // 基于管理员勾选的模型并集生成下拉项（不追加计数后缀）
+      const allowedUnion = new Set<string>()
+      keys.forEach((k) => {
+        (k.chatModels || []).forEach((m) => allowedUnion.add(m))
+      })
+
+      Array.from(allowedUnion).forEach((model) => {
+        chatModels.push({ label: model, key: model, value: model })
       })
 
       updateUserVisitTime(userInfo.userId, new Date().toLocaleString())
@@ -683,7 +679,12 @@ router.post('/session', async (req, res) => {
         allowRegister,
         title: config.siteConfig.siteTitle,
         chatModels,
-        allChatModels: chatModelOptions,
+        // 优先使用数据库持久化的模型并集，若为空则回退到内置静态列表
+        allChatModels: (function() {
+          return dynamicAllModels.length
+            ? dynamicAllModels.map((model) => ({ label: model, key: model, value: model }))
+            : chatModelOptions
+        })(),
         userInfo,
       },
     })
@@ -1067,6 +1068,22 @@ router.post('/setting-key-status', rootAuth, async (req, res) => {
       }
 
       const models = await listModelsForKey(targetKey)
+      // 刷新后将模型列表持久化到数据库，便于前端统一展示
+      try {
+        if (id) {
+          const { updateKeyAvailableModels } = await import('./storage/sqlite')
+          await updateKeyAvailableModels(Number(id), models)
+        }
+        else if (directKey) {
+          const { updateKeyAvailableModelsByKey } = await import('./storage/sqlite')
+          await updateKeyAvailableModelsByKey(directKey, apiBaseUrl || undefined, models)
+        }
+        clearApiKeyCache()
+      }
+      catch (persistErr) {
+        // 持久化失败不影响返回模型列表，仅记录错误
+        globalThis.console.warn('Persist models failed:', persistErr)
+      }
       res.send({ status: 'Success', data: models })
     }
     catch (error: any) {

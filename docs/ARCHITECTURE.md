@@ -77,6 +77,11 @@
 
 > 注意：部分接口需要 `root` 管理员权限（见后端 `rootAuth` 中间件）。
 
+会话返回约定（/session）：
+- `chatModels`：基于管理员在各密钥上勾选的允许模型的并集生成，显示为纯模型名（不再追加“出现次数”的后缀）。
+- `allChatModels`：来自各密钥已持久化的“可用模型”并集；若并集为空，则回退为静态内置列表。
+- 方法为 `POST /session`，未实现 `GET /session`。
+
 ### 密钥管理与模型缓存（Keys.vue 行为说明）
 
 - 模型来源与初始化：
@@ -109,7 +114,8 @@
   - 图片生成通过自建 `new-api` 中转服务，返回 `url` 并在前端展示；
   - 流式输出：对话以流式推送增量 `content`，并在检测到“思考”内容时增量回传 `thinking` 片段（Gemini Thinking 等模型受控于房间级开关）；
   - 维护 `conversationId`/`parentMessageId` 上下文，通过 `sqlite` 记录消息与 `usage`（`thinking` 内容保存在 `chat.options` 中）；
-  - 支持第三方文本审核（默认 `baidu`），可配置请求/响应审核维度。
+- 支持第三方文本审核（默认 `baidu`），可配置请求/响应审核维度。
+  - 密钥选择：对每次聊天请求，先按当前用户角色、密钥状态（非 `Disabled`）与房间/聊天选择的模型过滤可用密钥集合，然后在集合中随机选择一个未锁定的密钥；同一密钥使用后会短暂锁定（约 20 秒），若全部锁定会等待最多约 3 秒后重试。
 - 存储层：
   - `service/src/storage/sqlite.ts` 使用 `sqlite3`，启动时建表：`chat`、`chat_room`、`user`、`config`、`chat_usage`、`key_config`；数据库文件位于 `./data/chatgpt.db`。
   - 业务方法覆盖：房间与聊天 CRUD、用户管理与统计、配置与 API Key 管理等。

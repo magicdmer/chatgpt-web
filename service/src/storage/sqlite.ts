@@ -69,6 +69,7 @@ interface KeyConfigDBRow {
   chatModels: string
   apiBaseUrl?: string
   remark?: string
+  availableModels?: string
 }
 
 dotenv.config()
@@ -169,8 +170,14 @@ db.serialize(() => {
     userRoles TEXT,
     chatModels TEXT,
     apiBaseUrl TEXT,
-    remark TEXT
+    remark TEXT,
+    availableModels TEXT
   )`)
+
+  // 尝试为 key_config 增加 availableModels 字段（若已存在则忽略错误）
+  db.run('ALTER TABLE key_config ADD COLUMN availableModels TEXT DEFAULT \'[]\'', [], (err) => {
+    // ignore error if column already exists
+  })
 })
 
 // 修改数据库查询方法的类型定义
@@ -443,6 +450,7 @@ export async function getKeys(): Promise<{ keys: KeyConfig[]; total: number }> {
       row.remark || ''
     )
     keyConfig.id = row.id
+    keyConfig.availableModels = row.availableModels ? JSON.parse(row.availableModels) : []
     return keyConfig
   })
   return { keys, total: keys.length }
@@ -469,14 +477,15 @@ export async function updateApiKeyStatus(id: string, status: Status) {
 export async function upsertKey(key: KeyConfig): Promise<KeyConfig> {
   if (!key.id) {
     return new Promise<KeyConfig>((resolve, reject) => {
-      const sql = 'INSERT INTO key_config (key, status, userRoles, chatModels, apiBaseUrl, remark) VALUES (?, ?, ?, ?, ?, ?)'
+      const sql = 'INSERT INTO key_config (key, status, userRoles, chatModels, apiBaseUrl, remark, availableModels) VALUES (?, ?, ?, ?, ?, ?, ?)'
       db.run(sql, [
         key.key,
         key.status,
         JSON.stringify(key.userRoles),
         JSON.stringify(key.chatModels),
         key.apiBaseUrl,
-        key.remark
+        key.remark,
+        JSON.stringify(key.availableModels || [])
       ], function(err) {
         if (err) reject(err)
         else {
@@ -487,7 +496,7 @@ export async function upsertKey(key: KeyConfig): Promise<KeyConfig> {
     })
   } else {
     return new Promise<KeyConfig>((resolve, reject) => {
-      const sql = 'UPDATE key_config SET key = ?, status = ?, userRoles = ?, chatModels = ?, apiBaseUrl = ?, remark = ? WHERE id = ?'
+      const sql = 'UPDATE key_config SET key = ?, status = ?, userRoles = ?, chatModels = ?, apiBaseUrl = ?, remark = ?, availableModels = ? WHERE id = ?'
       db.run(sql, [
         key.key,
         key.status,
@@ -495,6 +504,7 @@ export async function upsertKey(key: KeyConfig): Promise<KeyConfig> {
         JSON.stringify(key.chatModels),
         key.apiBaseUrl,
         key.remark,
+        JSON.stringify(key.availableModels || []),
         Number(key.id)
       ], (err) => {
         if (err) reject(err)
@@ -502,6 +512,28 @@ export async function upsertKey(key: KeyConfig): Promise<KeyConfig> {
       })
     })
   }
+}
+
+// 更新指定 ID 的密钥的可用模型列表
+export async function updateKeyAvailableModels(id: number, models: string[]): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const sql = 'UPDATE key_config SET availableModels = ? WHERE id = ?'
+    db.run(sql, [JSON.stringify(models || []), Number(id)], (err) => {
+      if (err) reject(err)
+      else resolve()
+    })
+  })
+}
+
+// 按 key + apiBaseUrl 更新可用模型列表（用于未传 id 的情况）
+export async function updateKeyAvailableModelsByKey(key: string, apiBaseUrl: string | undefined, models: string[]): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const sql = 'UPDATE key_config SET availableModels = ? WHERE key = ? AND (apiBaseUrl = ? OR (? IS NULL AND apiBaseUrl IS NULL))'
+    db.run(sql, [JSON.stringify(models || []), key, apiBaseUrl || null, apiBaseUrl || null], (err) => {
+      if (err) reject(err)
+      else resolve()
+    })
+  })
 }
 
 // 获取用户每日统计数据

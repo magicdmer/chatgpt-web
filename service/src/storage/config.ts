@@ -139,6 +139,9 @@ export async function getApiKeys() {
     if (key.chatModels == null || key.chatModels.length <= 0) {
       key.chatModels = chatModelOptions.map(option => option.value)
     }
+    if (!key.availableModels) {
+      key.availableModels = []
+    }
   })
   return result
 }

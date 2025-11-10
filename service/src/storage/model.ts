@@ -82,7 +82,7 @@ export const chatModelOptions = [
   'command-a-03-2025',
 
   // Moonshot 系列
-  'moonshot-v1-auto',
+  'moonshot-v1-auto', 'kimi-k2',
   
   // DeepSeek 系列
   'deepseek-chat', 'deepseek-coder', 'deepseek-reasoner',
@@ -267,6 +267,7 @@ export class KeyConfig {
   key: string
   apiBaseUrl: string
   chatModels: string[]
+  availableModels?: string[]
   userRoles: UserRole[]
   status: Status
   remark: string
