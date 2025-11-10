@@ -617,6 +617,21 @@ onMounted(() => {
   handleSyncChat()
 })
 
+// 当会话中的可选模型变更时，如果当前房间所选模型不在新列表中，自动切换到第一个可用模型
+watch(
+  () => authStore.session?.chatModels,
+  (options) => {
+    const list = (options || []).map((o: any) => o?.value ?? o?.key ?? o?.label)
+    const cur = currentChatModel.value
+    if (list.length && !list.includes(cur)) {
+      const next = list[0]
+      if (next)
+        handleSyncChatModel(next)
+    }
+  },
+  { immediate: true },
+)
+
 watch(() => chatStore.active, () => {
   handleSyncChat()
 })
