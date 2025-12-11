@@ -9,6 +9,7 @@ services:
       - 3002:3002
     volumes:
       - ./data:/app/data
+      - ./uploads:/app/uploads
     environment:
       TZ: Asia/Shanghai
       # 访问jwt加密参数，可选 不为空则允许登录

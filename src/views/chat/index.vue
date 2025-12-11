@@ -13,7 +13,7 @@ import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAuthStore, useChatStore, usePromptStore } from '@/store'
-import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding } from '@/api'
+import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchUploadImages, fetchImageVision, fetchImageEdit } from '@/api'
 import { buildExtraBody } from '@/utils/extraBody'
 import { t } from '@/locales'
 import { debounce } from '@/utils/functions/debounce'
@@ -49,6 +49,11 @@ const firstLoading = ref<boolean>(false)
 const loading = ref<boolean>(false)
 const inputRef = ref<Ref | null>(null)
 const showPrompt = ref(false)
+// 图片附件：上传后得到的可访问URL列表
+const attachedImageUrls = ref<string[]>([])
+const fileInputRef = ref<HTMLInputElement | null>(null)
+// 编辑模式（不使用蒙版，简化操作）
+const isEditMode = ref<boolean>(false)
 
 let loadingms: MessageReactive
 let prevScrollTop: number
@@ -65,9 +70,64 @@ dataSources.value.forEach((item, index) => {
     updateChatSome(+uuid, index, { loading: false })
 })
 
+function toAbsolute(u: string): string {
+  return (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) ? u : new URL(u, window.location.origin).toString()
+}
+
 function handleSubmit() {
   onConversation()
 }
+
+function triggerAttach() {
+  if (!fileInputRef.value) return
+  fileInputRef.value.value = ''
+  fileInputRef.value.click()
+}
+
+// 已移除蒙版上传，编辑模式直接对图片进行修改
+
+async function onFilesSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = input.files
+  if (!files || files.length === 0) return
+  const form = new FormData()
+  Array.from(files).forEach(f => form.append('files', f))
+  try {
+    const res = await fetchUploadImages<{ urls: string[] }>(form)
+    const urls = (res as any)?.data?.urls || []
+    attachedImageUrls.value = [...attachedImageUrls.value, ...urls]
+    ms.success(`已添加图片 ${urls.length} 张`)
+  }
+  catch (err: any) {
+    ms.error(err?.message || '图片上传失败')
+  }
+}
+
+async function handlePaste(e: ClipboardEvent) {
+  const items = e.clipboardData?.items
+  if (!items) return
+  const files: File[] = []
+  for (const it of items) {
+    if (it.kind === 'file') {
+      const f = it.getAsFile()
+      if (f && f.type.startsWith('image/')) files.push(f)
+    }
+  }
+  if (files.length === 0) return
+  const form = new FormData()
+  files.forEach(f => form.append('files', f))
+  try {
+    const res = await fetchUploadImages<{ urls: string[] }>(form)
+    const urls = (res as any)?.data?.urls || []
+    attachedImageUrls.value = [...attachedImageUrls.value, ...urls]
+    ms.success(`已粘贴图片 ${urls.length} 张`)
+  }
+  catch (err: any) {
+    ms.error(err?.message || '图片上传失败')
+  }
+}
+
+// 已移除蒙版上传逻辑
 
 async function handleToggleUsingThinking() {
   if (!currentChatHistory.value)
@@ -89,15 +149,22 @@ async function onConversation() {
   if (!message || message.trim() === '')
     return
 
+  // 复制当前待发送的附件，并立即清空预览以避免粘贴后发送时预览残留
+  const imagesToSend = attachedImageUrls.value.length > 0 ? [...attachedImageUrls.value] : []
+  if (imagesToSend.length > 0)
+    attachedImageUrls.value = []
+
   controller = new AbortController()
 
   const chatUuid = Date.now()
+  const attachmentsMarkdown = imagesToSend.length > 0 ? imagesToSend.map(u => `![image](${toAbsolute(u)})`).join('\n') : ''
+  const userText = attachmentsMarkdown ? `${message}\n\n${attachmentsMarkdown}` : message
   addChat(
     +uuid,
     {
       uuid: chatUuid,
       dateTime: new Date().toLocaleString(),
-      text: message,
+      text: userText,
       inversion: true,
       error: false,
       conversationOptions: null,
@@ -137,6 +204,57 @@ async function onConversation() {
     let lastThinking = ''
     const fetchChatAPIOnce = async () => {
       const extraBody = buildExtraBody(currentChatModel.value, usingThinking.value)
+      // 如有图片附件，依据模式选择识图或编辑
+      if (imagesToSend.length > 0) {
+        if (isEditMode.value) {
+          const editRes = await fetchImageEdit<{ markdown?: string; url?: string; urls?: string[] }>({
+            prompt: message,
+            images: imagesToSend,
+            roomId: +uuid,
+            messageUuid: chatUuid,
+            model: currentChatModel.value
+          })
+          const markdown = (editRes as any)?.data?.markdown
+          const urls = (editRes as any)?.data?.urls || []
+          const url = (editRes as any)?.data?.url
+          const text = markdown || (urls.length > 0 ? urls.map((u: string) => `![edited](${u})`).join('\n') : (url ? `![edited](${url})` : ''))
+          updateChat(
+            +uuid,
+            dataSources.value.length - 1,
+            {
+              dateTime: new Date().toLocaleString(),
+              text,
+              inversion: false,
+              error: false,
+              loading: false,
+              thinking: '',
+              thinkingExpanded: false,
+              conversationOptions: null,
+              requestOptions: { prompt: message, options: { ...options } },
+            },
+          )
+        }
+        else {
+          const vision = await fetchImageVision<{ text: string }>({ prompt: userText, images: imagesToSend, model: currentChatModel.value, roomId: +uuid, messageUuid: chatUuid })
+          const text = (vision as any)?.data?.text || ''
+          updateChat(
+            +uuid,
+            dataSources.value.length - 1,
+            {
+              dateTime: new Date().toLocaleString(),
+              text,
+              inversion: false,
+              error: false,
+              loading: false,
+              thinking: '',
+              thinkingExpanded: false,
+              conversationOptions: null,
+              requestOptions: { prompt: message, options: { ...options } },
+            },
+          )
+        }
+        return
+      }
       await fetchChatAPIProcess<Chat.ConversationResponse>({
         roomId: +uuid,
         uuid: chatUuid,
@@ -721,47 +839,62 @@ onUnmounted(() => {
                 <SvgIcon icon="ri:chat-history-line" />
               </span>
             </HoverButton>
-            <HoverButton v-if="!isMobile" @click="handleToggleUsingThinking">
-              <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingThinking, 'text-[#a8071a]': !usingThinking }">
-                <SvgIcon icon="ri:lightbulb-line" />
+          <HoverButton v-if="!isMobile" @click="handleToggleUsingThinking">
+            <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingThinking, 'text-[#a8071a]': !usingThinking }">
+              <SvgIcon icon="ri:lightbulb-line" />
+            </span>
+          </HoverButton>
+          <HoverButton v-if="!isMobile" @click="triggerAttach">
+            <span class="text-xl text-[#4f555e] dark:text-white">
+              <SvgIcon icon="ri:attachment-2" />
+            </span>
+          </HoverButton>
+          <HoverButton v-if="!isMobile" @click="isEditMode = !isEditMode">
+            <span class="text-xl" :class="{ 'text-[#4b9e5f]': isEditMode, 'text-[#4f555e] dark:text-white': !isEditMode }">
+              <SvgIcon icon="ri:scissors-cut-line" />
+            </span>
+          </HoverButton>
+          <NSelect
+            style="width: 250px"
+            :value="currentChatModel"
+            :options="authStore.session?.chatModels"
+            :disabled="!!authStore.session?.auth && !authStore.token"
+            @update-value="(val) => handleSyncChatModel(val)"
+          />
+        </div>
+        <div class="flex items-center justify-between space-x-2">
+          <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
+            <template #default="{ handleInput, handleBlur, handleFocus }">
+              <NInput
+                ref="inputRef"
+                v-model:value="prompt"
+                :disabled="!!authStore.session?.auth && !authStore.token"
+                type="textarea"
+                :placeholder="placeholder"
+                :autosize="{ minRows: isMobile ? 1 : 4, maxRows: isMobile ? 4 : 8 }"
+                @input="handleInput"
+                @focus="handleFocus"
+                @blur="handleBlur"
+                @keypress="handleEnter"
+                @paste="handlePaste"
+              />
+            </template>
+          </NAutoComplete>
+          <NButton type="primary" :disabled="buttonDisabled" @click="handleSubmit">
+            <template #icon>
+              <span class="dark:text-black">
+                <SvgIcon icon="ri:send-plane-fill" />
               </span>
-            </HoverButton>
-            <NSelect
-              style="width: 250px"
-              :value="currentChatModel"
-              :options="authStore.session?.chatModels"
-              :disabled="!!authStore.session?.auth && !authStore.token"
-              @update-value="(val) => handleSyncChatModel(val)"
-            />
-          </div>
-          <div class="flex items-center justify-between space-x-2">
-            <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
-              <template #default="{ handleInput, handleBlur, handleFocus }">
-                <NInput
-                  ref="inputRef"
-                  v-model:value="prompt"
-                  :disabled="!!authStore.session?.auth && !authStore.token"
-                  type="textarea"
-                  :placeholder="placeholder"
-                  :autosize="{ minRows: isMobile ? 1 : 4, maxRows: isMobile ? 4 : 8 }"
-                  @input="handleInput"
-                  @focus="handleFocus"
-                  @blur="handleBlur"
-                  @keypress="handleEnter"
-                />
-              </template>
-            </NAutoComplete>
-            <NButton type="primary" :disabled="buttonDisabled" @click="handleSubmit">
-              <template #icon>
-                <span class="dark:text-black">
-                  <SvgIcon icon="ri:send-plane-fill" />
-                </span>
-              </template>
-            </NButton>
-          </div>
-        </NSpace>
-      </div>
-    </footer>
-    <Prompt v-if="showPrompt" v-model:roomId="uuid" v-model:visible="showPrompt" />
-  </div>
+            </template>
+          </NButton>
+        </div>
+        <input ref="fileInputRef" type="file" accept="image/*" multiple class="hidden" @change="onFilesSelected">
+        <div v-if="attachedImageUrls.length > 0" class="mt-2 flex flex-wrap gap-2">
+          <img v-for="u in attachedImageUrls" :key="u" :src="u" class="w-16 h-16 object-cover rounded border" />
+        </div>
+      </NSpace>
+    </div>
+  </footer>
+  <Prompt v-if="showPrompt" v-model:roomId="uuid" v-model:visible="showPrompt" />
+</div>
 </template>

@@ -4,11 +4,16 @@ import * as dotenv from 'dotenv'
 import { textTokens } from 'gpt-token'
 import type { RequestProps } from './types'
 import type { ChatMessage } from './chatgpt'
-import { abortChatProcess, chatConfig, chatReplyProcess, containsSensitiveWords, initAuditService, listModelsForKey } from './chatgpt'
+import { abortChatProcess, chatConfig, chatReplyProcess, containsSensitiveWords, initAuditService, listModelsForKey, createClient } from './chatgpt'
 import { auth, getUserId } from './middleware/auth'
 import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig } from './storage/config'
-import { Status, UsageResponse, UserRole, chatModelOptions } from './storage/model'
-import type { AuditConfig, ChatInfo, ChatOptions, Config, KeyConfig, MailConfig, SiteConfig, UserInfo, UserOption } from './storage/model'
+import { Status, UsageResponse, UserRole, chatModelOptions, KeyConfig } from './storage/model'
+import type { AuditConfig, ChatInfo, ChatOptions, Config, MailConfig, SiteConfig, UserInfo, UserOption } from './storage/model'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
+import { toFile } from 'openai/uploads'
+import fetch from 'node-fetch'
 import {
   clearChat,
   createChatRoom,
@@ -76,6 +81,243 @@ app.all('*', (_, res, next) => {
   res.header('Access-Control-Allow-Methods', '*')
   next()
 })
+
+// ---- Uploads static dir and multer setup ----
+const UPLOAD_DIR = './uploads'
+try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }) } catch {}
+app.use('/uploads', express.static(UPLOAD_DIR))
+app.use('/api/uploads', express.static(UPLOAD_DIR))
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || ''
+    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    cb(null, `${unique}${ext}`)
+  },
+})
+const upload = multer({
+  storage,
+  limits: { fileSize: Number(process.env.UPLOAD_MAX_SIZE_MB || 10) * 1024 * 1024 },
+})
+
+function buildAbsoluteUrl(u: string): string {
+  try {
+    if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u
+    const isUploads = (p: string) => p.startsWith('/uploads/') || p.startsWith('./uploads/') || p.startsWith('uploads/')
+    const normalizeUploads = (p: string) => `/uploads/${path.basename(p)}`
+    if (isUploads(u)) {
+      const siteDomain = (globalThis as any).__siteDomainCache || undefined
+      // lazy cache site domain
+      if (!siteDomain) {
+        getCacheConfig().then(cfg => { (globalThis as any).__siteDomainCache = cfg?.siteConfig?.siteDomain })
+      }
+      const domain = (globalThis as any).__siteDomainCache
+      if (domain && (domain.startsWith('http://') || domain.startsWith('https://')))
+        return `${domain}${normalizeUploads(u)}`
+      // fallback: try origin-relative
+      return normalizeUploads(u)
+    }
+    return u
+  }
+  catch { return u }
+}
+
+async function toDataUrlIfLocal(u: string): Promise<string> {
+  const isUploads = (p: string) => p.startsWith('/uploads/') || p.startsWith('./uploads/') || p.startsWith('uploads/')
+  if (u && isUploads(u)) {
+    try {
+      const name = path.basename(u)
+      const filePath = path.join(UPLOAD_DIR, name)
+      const ext = path.extname(name).toLowerCase()
+      const mime = ext === '.png'
+        ? 'image/png'
+        : (ext === '.jpg' || ext === '.jpeg')
+          ? 'image/jpeg'
+          : ext === '.webp'
+            ? 'image/webp'
+            : ext === '.gif'
+              ? 'image/gif'
+              : 'application/octet-stream'
+      const buf = await fs.promises.readFile(filePath)
+      return `data:${mime};base64,${buf.toString('base64')}`
+    }
+    catch {
+      return u
+    }
+  }
+  return u
+}
+
+// 单文件上传（字段名：file）
+router.post('/upload-image', auth, upload.single('file'), async (req, res) => {
+  try {
+    const file: any = (req as any).file
+    if (!file) {
+      res.send({ status: 'Fail', message: 'No file uploaded', data: null })
+      return
+    }
+    const url = `/uploads/${file.filename}`
+    res.send({ status: 'Success', message: null, data: { url, urls: [url] } })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error?.message || String(error), data: null })
+  }
+})
+
+// 多文件上传（字段名：files）
+router.post('/upload-images', auth, upload.array('files', 10), async (req, res) => {
+  try {
+    const files: any[] = (req as any).files
+    if (!files || files.length === 0) {
+      res.send({ status: 'Fail', message: 'No files uploaded', data: null })
+      return
+    }
+    const urls = files.map((f: any) => `/uploads/${f.filename}`)
+    res.send({ status: 'Success', message: null, data: { urls } })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error?.message || String(error), data: null })
+  }
+})
+
+// ---- Image Vision (recognition) ----
+router.post('/image-vision', auth, async (req, res) => {
+  try {
+    const userId = req.headers.userId as string
+    const { prompt, images, model, roomId, messageUuid } = req.body as { prompt: string; images: string[]; model?: string; roomId?: number; messageUuid?: number }
+    if (!prompt || !Array.isArray(images) || images.length === 0) {
+      res.send({ status: 'Fail', message: 'Missing prompt or images', data: null })
+      return
+    }
+
+    // select key by user roles and model capability
+    const user = await getUserById(userId)
+    const keys = (await getCacheApiKeys()).filter(k => k.status !== Status.Disabled)
+    const preferModel = model || 'gpt-4o'
+    const key: KeyConfig | undefined = keys.find(k => k.chatModels.includes(preferModel)) || keys[0]
+    if (!key) {
+      res.send({ status: 'Fail', message: 'No available API key', data: null })
+      return
+    }
+    const client = await createClient(key)
+
+    const content: any[] = [{ type: 'text', text: prompt }]
+    for (const u of images) {
+      const maybeData = await toDataUrlIfLocal(u)
+      const finalUrl = (maybeData.startsWith('data:'))
+        ? maybeData
+        : (u.startsWith('/uploads/')
+          ? `${req.protocol}://${req.get('host')}${u}`
+          : buildAbsoluteUrl(maybeData))
+      content.push({ type: 'image_url', image_url: { url: finalUrl } })
+    }
+
+    const completion = await client.chat.completions.create({
+      model: preferModel,
+      messages: [{ role: 'user', content }],
+    })
+    const text = completion?.choices?.[0]?.message?.content || ''
+    try {
+      if (roomId && await existsChatRoom(userId, Number(roomId))) {
+        const msg = await insertChat(Number(messageUuid || Date.now()), prompt, Number(roomId), {} as any)
+        await updateChat(String(msg.id), text, '', '', null as any)
+      }
+    } catch {}
+    res.send({ status: 'Success', message: null, data: { text } })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error?.message || String(error), data: null })
+  }
+})
+
+// ---- Image Edit (image-to-image) ----
+router.post('/image-edit', auth, async (req, res) => {
+  try {
+    const userId = req.headers.userId as string
+    const { prompt, images, mask, model, roomId, messageUuid } = req.body as { prompt: string; images: string[]; mask?: string; model?: string; roomId?: number; messageUuid?: number }
+    if (!prompt) {
+      res.send({ status: 'Fail', message: 'Missing prompt', data: null })
+      return
+    }
+    const keys = (await getCacheApiKeys()).filter(k => k.status !== Status.Disabled)
+    const preferModel = model || 'gpt-image-1'
+    const key: KeyConfig | undefined = keys.find(k => k.chatModels.includes('dall-e-3') || k.chatModels.includes(preferModel)) || keys[0]
+    if (!key) {
+      res.send({ status: 'Fail', message: 'No available API key', data: null })
+      return
+    }
+    const client = await createClient(key)
+
+    async function toFileFromUrlOrData(u: string, filename: string) {
+      const isUploads = (p: string) => p.startsWith('/uploads/') || p.startsWith('./uploads/') || p.startsWith('uploads/')
+      const final = buildAbsoluteUrl(u)
+      if (final.startsWith('data:')) {
+        const base64 = final.split(',')[1] || ''
+        const buf = Buffer.from(base64, 'base64')
+        return await toFile(buf, filename)
+      }
+      if (isUploads(u)) {
+        // 直接从本地上传目录读取文件
+        const name = path.basename(u)
+        const filePath = path.join(UPLOAD_DIR, name)
+        const buf = await fs.promises.readFile(filePath)
+        return await toFile(buf, filename)
+      }
+      const resp = await fetch(final)
+      const ab = await resp.arrayBuffer()
+      return await toFile(ab, filename)
+    }
+
+    // 支持多图片编辑：将全部图片转为 File，并传入 edits
+    const imageFiles = await Promise.all(images.map((u: string, i: number) => toFileFromUrlOrData(u, `image${i}.png`)))
+    const editArgs: any = { model: preferModel, prompt, image: imageFiles }
+    if (mask) editArgs.mask = await toFileFromUrlOrData(mask, 'mask.png')
+    const result = await client.images.edit(editArgs)
+    const urls: string[] = Array.isArray(result?.data) ? (result.data.map((d: any) => d?.url).filter((u: any) => !!u)) : []
+    const url = urls[0]
+    const markdown = urls.length > 0 ? urls.map(u => `![edited image](${u})`).join('\n') : ''
+    try {
+      if (roomId && await existsChatRoom(userId, Number(roomId))) {
+        const attachmentsMarkdown = Array.isArray(images) && images.length > 0
+          ? images.map((u: string) => `![image](${buildAbsoluteUrl(u)})`).join('\n')
+          : ''
+        const userText = attachmentsMarkdown ? `${prompt}\n\n${attachmentsMarkdown}` : prompt
+        const msg = await insertChat(Number(messageUuid || Date.now()), userText, Number(roomId), {} as any)
+        await updateChat(String(msg.id), markdown || (url || ''), '', '', null as any)
+      }
+    } catch {}
+    res.send({ status: 'Success', message: null, data: { url, urls, markdown } })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error?.message || String(error), data: null })
+  }
+})
+
+// ---- Uploads cleaner (optional) ----
+const CLEAN_INTERVAL_MIN = Number(process.env.UPLOAD_CLEAN_INTERVAL || 60) // minutes
+const RETENTION_HOURS = Number(process.env.UPLOAD_SAVE_HOURS || 24)
+if (CLEAN_INTERVAL_MIN > 0) {
+  setInterval(() => {
+    try {
+      const now = Date.now()
+      const expiry = now - RETENTION_HOURS * 60 * 60 * 1000
+      fs.readdir(UPLOAD_DIR, (err, files) => {
+        if (err) return
+        files.forEach((f) => {
+          const full = path.join(UPLOAD_DIR, f)
+          fs.stat(full, (e, st) => {
+            if (e) return
+            if (st.isFile() && st.mtimeMs < expiry) {
+              fs.unlink(full, () => {})
+            }
+          })
+        })
+      })
+    }
+    catch {}
+  }, CLEAN_INTERVAL_MIN * 60 * 1000)
+}
 
 router.get('/chatrooms', auth, async (req, res) => {
   try {

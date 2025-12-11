@@ -11,6 +11,10 @@
 - 配置：`.env`（前端）、`service/.env.example`（后端示例）；后端支持大量环境变量，前端通过 `VITE_*` 变量配置
 - 工具：使用`fnm`来管理nodejs环境，该工程使用node18.x
 
+- 图片能力：支持图片上传、图文对话（Vision）与图片编辑（Edit），统一走后端路由与 OpenAI 兼容接口
+
+该工程通过new-api服务，使用统一的OpenAI接口方式调用不同AI服务商提供的各种模型服务，所以我们只需要关注OpenAI的接口规范即可。
+
 ## 目录结构（关键部分）
 
 ```
@@ -39,8 +43,11 @@
 ├─ kubernetes/          # K8S 部署示例
 ├─ vite.config.ts       # 前端开发代理与 PWA 配置
 ├─ package.json         # 前端脚本与依赖
-└─ README*.md           # 使用说明（中/英）
+ └─ README*.md           # 使用说明（中/英）
 ```
+
+运行时目录：
+- `service/uploads/` 用于存储上传文件（静态服务目录，通过前端访问 `'/uploads/...'`）。
 
 ## 前端架构
 
@@ -62,6 +69,7 @@
   - `src/locales/*` 提供多语言文案，设置面板、统计、权限等文案较为完整。
 - 开发代理：
   - `vite.config.ts` 在开发模式下将 `'/api'` 代理到 `viteEnv.VITE_APP_API_BASE_URL` 并重写为根路径（后端同时在 `''` 与 `/api` 挂载）。
+  - 同时将 `'/uploads'` 代理到后端，便于前端直接访问本地静态上传文件。
 
 ### 前端与后端的接口映射（示例）
 
@@ -74,6 +82,12 @@
   - 思考开关：`/room-thinking`（开启/关闭当前房间的“思考”内容回传）
 - 用户与会话：`/session`、`/user-login`、`/user-register`、`/user-info`、`/users`、`/user-status`、`/user-edit`、`/verify`、`/verifyadmin`
 - 配置与运维：`/setting-base`、`/setting-site`、`/setting-mail`、`/mail-test`、`/setting-audit`、`/audit-test`、`/setting-keys`、`/setting-key-status`、`/setting-key-upsert`、`/statistics/by-day`
+
+上传与图片相关：
+- `POST /upload-image`（单文件上传，返回可访问的静态地址）
+- `POST /upload-images`（多文件上传，返回静态地址数组）
+- `POST /image-vision`（图文对话：文本 + 多图片，返回文本结果）
+- `POST /image-edit`（图片编辑/以图生图：支持可选 `mask`，返回图片 URL/Markdown）
 
 > 注意：部分接口需要 `root` 管理员权限（见后端 `rootAuth` 中间件）。
 
@@ -105,6 +119,7 @@
 
 - 应用入口：
   - `service/src/index.ts` 初始化 `express`，注册静态目录 `public`，全局 `JSON` 解析与 CORS 头，构建主路由 `router` 并挂载到 `''` 与 `/api`（便于代理与直连）。
+  - 注册上传静态目录与路由：`/uploads` 与 `/api/uploads` 指向 `service/uploads`（`service/src/index.ts:86-99`）。
 - 中间件：
   - `auth`：基于 `JWT` 与数据库用户状态校验，`AUTH_SECRET_KEY` 存在时强制认证，否则给予“伪 userId”以便无登录使用。
   - `rootAuth`：仅管理员可访问的配置/运维接口；验证 `roles` 包含 `Admin`。
@@ -122,6 +137,16 @@
   - 字段补充：`chat_room` 增加 `usingThinking`（房间级“思考”开关）；`chat` 的“思考”内容以 JSON 形式存于 `options.thinking`。
 - 配置缓存：
   - `service/src/storage/config.ts` 负责从 DB 或环境变量生成 `Config`，并维护内存缓存与过期；同时提供 `getApiKeys()` 与 Key 的筛选逻辑（角色/模型）。
+
+图片与上传能力（后端路由）：
+- 上传接口：单图 `/upload-image` 与多图 `/upload-images`，返回静态访问路径（`service/src/index.ts:160, 176`）。
+- 图文对话：`/image-vision`，将多图片以 `image_url` 与文本共同提交到模型（`service/src/index.ts:185, 213-216`）。
+- 图片编辑：`/image-edit`，支持可选 `mask` 与多图片输入，返回图片 URL 或 Markdown（`service/src/index.ts:235, 253, 276`）。
+- 上传清理器：定时清理过期文件，清理间隔与保留时长可配置（`service/src/index.ts` 上传段落之后）。
+
+使用量追踪与估算（Token Usage）：
+- 统一抽取并持久化 `prompt_tokens`、`completion_tokens`、`total_tokens`（`service/src/index.ts:486-552`）。
+- 当返回缺失时，按模型映射进行估算：`mapModelForTokenizer` 与 `textTokens`（`service/src/index.ts:66-67, 706-720`）。
 
 ### 路由与职责（节选）
 
@@ -144,6 +169,7 @@
   - `SOCKS_PROXY_*` / `HTTPS_PROXY`：网络代理。
   - `SITE_TITLE`、`REGISTER_ENABLED`、`REGISTER_REVIEW`、`REGISTER_MAILS`、`SITE_DOMAIN`：站点/注册配置。
   - `SMTP_*`：邮件服务配置；`AUDIT_*`：文本审核配置。
+  - 上传相关：`UPLOAD_MAX_SIZE_MB`（单文件最大 MB）、`UPLOAD_CLEAN_INTERVAL`（清理间隔分钟，0 关闭）、`UPLOAD_SAVE_HOURS`（保留时长小时）。
 
 ## 构建与部署
 
@@ -152,6 +178,8 @@
   - 运行命令：`./replace-title.sh && pnpm run prod`，端口 `3002`。
 - Docker Compose：
   - 默认映射 `3002:3002`，挂载 `./data:/app/data` 持久化 sqlite DB；通过 `environment` 传递后端环境变量。
+  - 额外挂载上传目录：`./uploads:/app/uploads`，保证上传文件持久化与静态访问。
+  - Nginx 代理可转发到 `app:3002`，并附带真实 IP 等头信息。
 - Kubernetes：
   - `kubernetes/deploy.yaml` 提供 `Deployment` 与 `Service` 示例，端口 `3002`。
 
@@ -162,6 +190,13 @@
 3. 聊天请求进入 `chatgpt` 模块，按配置与上下文与代理设置调用 ChatGPT；响应边接收边推送（支持进度事件），并写入 `sqlite`（消息与使用量）。
    同时，对于支持“思考”输出的模型，增量回传 `thinking` 片段并最终在 `options.thinking` 中保留完整内容。
 4. 前端 `store` 更新 UI 状态；`views/chat` 以消息列表渲染输出，支持回溯与中止。
+
+图片相关流转：
+- 上传：前端选择图片 -> 调用 `/upload-image(s)` -> 返回静态 URL -> 在输入区预览。
+- 图文对话：前端提交文本 + 图片 URL -> 调用 `/image-vision` -> 返回文本结果并写入房间消息。
+- 图片编辑：前端选择源图 + 开启编辑按钮 -> 调用 `/image-edit` -> 返回图片 URL/Markdown 并写入房间消息。
+
+图文对话和图片编辑是通过是否开启编辑按钮来区分的。
 
 ## 扩展与改造建议
 

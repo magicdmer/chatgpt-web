@@ -16,6 +16,7 @@ export function buildExtraBody(model: string, usingThinking: boolean): Record<st
   switch (provider) {
     case 'google':
       // Gemini Thinking：控制思考预算与是否回传思考内容
+      const isFlash = model.toLowerCase().includes('flash')
       return usingThinking
         ? {
             google: {
@@ -25,13 +26,15 @@ export function buildExtraBody(model: string, usingThinking: boolean): Record<st
               },
             },
           }
-        : {
+        : isFlash
+        ? {
             google: {
               thinking_config: {
                 thinking_budget: 0,
               },
             },
           }
+        : undefined
     case 'openai':
       // OpenAI 当前不支持 extra_body；由 new-api 仅用于非 OpenAI 模型
       return undefined

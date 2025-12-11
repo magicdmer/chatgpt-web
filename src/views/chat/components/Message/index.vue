@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NButton, NButtonGroup, NDropdown, NPopover, NSpace, useMessage } from 'naive-ui'
 import AvatarComponent from './Avatar.vue'
 import TextComponent from './Text.vue'
@@ -77,6 +77,15 @@ const options = computed(() => {
 
   return common
 })
+
+function autoRenderForUser() {
+  if (props.inversion) {
+    const txt = props.text || ''
+    const hasMarkdownImage = /\!\[.*?\]\(.+?\)/.test(txt)
+    asRawText.value = !hasMarkdownImage
+  }
+}
+watch(() => props.text, autoRenderForUser, { immediate: true })
 
 function handleSelect(key: 'copyText' | 'delete' | 'toggleRenderType') {
   switch (key) {

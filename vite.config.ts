@@ -41,6 +41,11 @@ export default defineConfig((env) => {
           changeOrigin: true, // 允许跨域
           rewrite: path => path.replace('/api/', '/'),
         },
+        // 让 /uploads 在开发环境下也能通过 1002 端口访问
+        '/uploads': {
+          target: viteEnv.VITE_APP_API_BASE_URL,
+          changeOrigin: true,
+        },
       },
     },
     build: {

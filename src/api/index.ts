@@ -191,6 +191,37 @@ export function fetchOpenAIModels<T = any>(payload: { key: string; apiBaseUrl?: 
   })
 }
 
+// ---- Upload & Image APIs ----
+export function fetchUploadImage<T = any>(form: FormData) {
+  return post<T>({
+    url: '/upload-image',
+    data: () => form,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+export function fetchUploadImages<T = any>(form: FormData) {
+  return post<T>({
+    url: '/upload-images',
+    data: () => form,
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+export function fetchImageVision<T = any>(payload: { prompt: string; images: string[]; model?: string; roomId?: number; messageUuid?: number }) {
+  return post<T>({
+    url: '/image-vision',
+    data: payload,
+  })
+}
+
+export function fetchImageEdit<T = any>(payload: { prompt: string; images: string[]; model?: string; roomId?: number; messageUuid?: number }) {
+  return post<T>({
+    url: '/image-edit',
+    data: payload,
+  })
+}
+
 export function fetchUpdateChatRoomChatModel<T = any>(model: string, roomId: number) {
   return post<T>({
     url: '/room-chatmodel',
