@@ -86,7 +86,9 @@ function triggerAttach() {
   fileInputRef.value.click()
 }
 
-// 已移除蒙版上传，编辑模式直接对图片进行修改
+function removeAttachedImage(index: number) {
+  attachedImageUrls.value = attachedImageUrls.value.filter((_, i) => i !== index)
+}
 
 async function onFilesSelected(e: Event) {
   const input = e.target as HTMLInputElement
@@ -831,7 +833,7 @@ onUnmounted(() => {
       <div class="w-full max-w-screen-xl m-auto">
         <NSpace vertical>
           <div class="flex items-center space-x-2">
-            <HoverButton @click="handleClear">
+            <HoverButton v-if="!isMobile" @click="handleClear">
               <span class="text-xl text-[#4f555e] dark:text-white">
                 <SvgIcon icon="ri:delete-bin-line" />
               </span>
@@ -873,6 +875,16 @@ onUnmounted(() => {
             :disabled="!!authStore.session?.auth && !authStore.token"
             @update-value="(val) => handleSyncChatModel(val)"
           />
+          <HoverButton v-if="isMobile" @click="handleClear">
+            <span class="text-xl text-[#4f555e] dark:text-white">
+              <SvgIcon icon="ri:delete-bin-line" />
+            </span>
+          </HoverButton>
+          <HoverButton v-if="isMobile" @click="triggerAttach">
+            <span class="text-xl text-[#4f555e] dark:text-white">
+              <SvgIcon icon="ri:attachment-2" />
+            </span>
+          </HoverButton>
         </div>
         <div class="flex items-center justify-between space-x-2">
           <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
@@ -902,7 +914,33 @@ onUnmounted(() => {
         </div>
         <input ref="fileInputRef" type="file" accept="image/*" multiple class="hidden" @change="onFilesSelected">
         <div v-if="attachedImageUrls.length > 0" class="mt-2 flex flex-wrap gap-2">
-          <img v-for="u in attachedImageUrls" :key="u" :src="u" class="w-16 h-16 object-cover rounded border" />
+          <div
+            v-for="(u, index) in attachedImageUrls"
+            :key="u"
+            class="relative w-16 h-16"
+          >
+            <img :src="u" class="w-16 h-16 object-cover rounded border" />
+            <button
+              v-if="!isMobile"
+              type="button"
+              class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
+              @click="removeAttachedImage(index)"
+            >
+              <span class="text-white text-lg">
+                <SvgIcon icon="ri:delete-bin-line" />
+              </span>
+            </button>
+            <button
+              v-else
+              type="button"
+              class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center"
+              @click="removeAttachedImage(index)"
+            >
+              <span class="text-white text-xs">
+                <SvgIcon icon="ri:close-fill" />
+              </span>
+            </button>
+          </div>
         </div>
       </NSpace>
     </div>
