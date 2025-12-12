@@ -34,8 +34,6 @@ let auditService: TextAuditService
 const _lockedKeys: { key: string; lockedTime: number }[] = []
 
 export async function createClient(key: KeyConfig) {
-  // More Info: https://github.com/transitive-bullshit/chatgpt-api
-
   const config = await getCacheConfig()
   const OPENAI_API_BASE_URL = config.apiBaseUrl
 

@@ -54,6 +54,8 @@ const attachedImageUrls = ref<string[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
 // 编辑模式（不使用蒙版，简化操作）
 const isEditMode = ref<boolean>(false)
+// 控制是否显示编辑按钮
+const showEditButton = false
 
 let loadingms: MessageReactive
 let prevScrollTop: number
@@ -859,7 +861,7 @@ onUnmounted(() => {
               <SvgIcon icon="ri:attachment-2" />
             </span>
           </HoverButton>
-          <HoverButton v-if="!isMobile" @click="isEditMode = !isEditMode">
+          <HoverButton v-if="!isMobile && showEditButton" @click="isEditMode = !isEditMode">
             <span class="text-xl" :class="{ 'text-[#4b9e5f]': isEditMode, 'text-[#4f555e] dark:text-white': !isEditMode }">
               <SvgIcon icon="ri:scissors-cut-line" />
             </span>
