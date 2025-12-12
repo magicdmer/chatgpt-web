@@ -111,7 +111,8 @@ async function handlePaste(e: ClipboardEvent) {
   const items = e.clipboardData?.items
   if (!items) return
   const files: File[] = []
-  for (const it of items) {
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
     if (it.kind === 'file') {
       const f = it.getAsFile()
       if (f && f.type.startsWith('image/')) files.push(f)
