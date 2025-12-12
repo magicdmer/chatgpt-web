@@ -204,6 +204,10 @@ async function onConversation() {
     let lastThinking = ''
     const fetchChatAPIOnce = async () => {
       const extraBody = buildExtraBody(currentChatModel.value, usingThinking.value)
+      const stripImageFromMarkdown = (s: string) => String(s || '')
+        .replace(/\!\[[^\]]*\]\([^)]+\)/g, '')
+        .replace(/<img[^>]*>/gi, '')
+        .trim()
       // 如有图片附件，依据模式选择识图或编辑
       if (imagesToSend.length > 0) {
         if (isEditMode.value) {
@@ -235,7 +239,13 @@ async function onConversation() {
           )
         }
         else {
-          const vision = await fetchImageVision<{ text: string }>({ prompt: userText, images: imagesToSend, model: currentChatModel.value, roomId: +uuid, messageUuid: chatUuid })
+          const vision = await fetchImageVision<{ text: string }>({
+            prompt: stripImageFromMarkdown(message),
+            images: imagesToSend,
+            model: currentChatModel.value,
+            roomId: +uuid,
+            messageUuid: chatUuid
+          })
           const text = (vision as any)?.data?.text || ''
           updateChat(
             +uuid,

@@ -12,6 +12,7 @@ import type { AuditConfig, ChatInfo, ChatOptions, Config, MailConfig, SiteConfig
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
+import { createXXHash64 } from 'hash-wasm'
 import { toFile } from 'openai/uploads'
 import fetch from 'node-fetch'
 import {
@@ -88,18 +89,37 @@ try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }) } catch {}
 app.use('/uploads', express.static(UPLOAD_DIR))
 app.use('/api/uploads', express.static(UPLOAD_DIR))
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ''
-    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    cb(null, `${unique}${ext}`)
+const storage: multer.StorageEngine = {
+  _handleFile(_req: any, file: any, cb: any) {
+    (async () => {
+      const ext = path.extname(file.originalname) || ''
+      const tmpName = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`
+      const tmpPath = path.join(UPLOAD_DIR, tmpName)
+      const out = fs.createWriteStream(tmpPath)
+      const hasher = await createXXHash64()
+      let size = 0
+      file.stream.on('data', (chunk: any) => { hasher.update(chunk); size += chunk.length })
+      out.on('error', (err) => cb(err))
+      out.on('finish', () => {
+        const digest = hasher.digest()
+        const finalName = `${digest}${ext}`
+        const finalPath = path.join(UPLOAD_DIR, finalName)
+        fs.promises.access(finalPath)
+          .then(() => fs.promises.unlink(tmpPath))
+          .catch(() => fs.promises.rename(tmpPath, finalPath))
+          .then(() => cb(null, { destination: UPLOAD_DIR, filename: finalName, path: finalPath, size }))
+          .catch((err) => cb(err))
+      })
+      file.stream.pipe(out)
+    })().catch(err => cb(err))
   },
-})
-const upload = multer({
-  storage,
-  limits: { fileSize: Number(process.env.UPLOAD_MAX_SIZE_MB || 10) * 1024 * 1024 },
-})
+  _removeFile(_req: any, file: any, cb: any) {
+    const p = file?.path
+    if (!p) return cb(null)
+    fs.unlink(p, () => cb(null))
+  },
+}
+const upload = multer({ storage, limits: { fileSize: Number(process.env.UPLOAD_MAX_SIZE_MB || 10) * 1024 * 1024 } })
 
 function buildAbsoluteUrl(u: string): string {
   try {
@@ -173,7 +193,10 @@ router.post('/upload-images', auth, upload.array('files', 10), async (req, res) 
       res.send({ status: 'Fail', message: 'No files uploaded', data: null })
       return
     }
-    const urls = files.map((f: any) => `/uploads/${f.filename}`)
+    const urls: string[] = []
+    for (const f of files) {
+      urls.push(`/uploads/${f.filename}`)
+    }
     res.send({ status: 'Success', message: null, data: { urls } })
   }
   catch (error: any) {
@@ -192,9 +215,8 @@ router.post('/image-vision', auth, async (req, res) => {
     }
 
     // select key by user roles and model capability
-    const user = await getUserById(userId)
     const keys = (await getCacheApiKeys()).filter(k => k.status !== Status.Disabled)
-    const preferModel = model || 'gpt-4o'
+    const preferModel = model || 'gemini-2.5-flash'
     const key: KeyConfig | undefined = keys.find(k => k.chatModels.includes(preferModel)) || keys[0]
     if (!key) {
       res.send({ status: 'Fail', message: 'No available API key', data: null })
@@ -220,7 +242,11 @@ router.post('/image-vision', auth, async (req, res) => {
     const text = completion?.choices?.[0]?.message?.content || ''
     try {
       if (roomId && await existsChatRoom(userId, Number(roomId))) {
-        const msg = await insertChat(Number(messageUuid || Date.now()), prompt, Number(roomId), {} as any)
+        const attachmentsMarkdown = Array.isArray(images) && images.length > 0
+          ? images.map((u: string) => `![image](${buildAbsoluteUrl(u)})`).join('\n')
+          : ''
+        const userText = attachmentsMarkdown ? `${prompt}\n\n${attachmentsMarkdown}` : prompt
+        const msg = await insertChat(Number(messageUuid || Date.now()), userText, Number(roomId), {} as any)
         await updateChat(String(msg.id), text, '', '', null as any)
       }
     } catch {}
@@ -241,7 +267,7 @@ router.post('/image-edit', auth, async (req, res) => {
       return
     }
     const keys = (await getCacheApiKeys()).filter(k => k.status !== Status.Disabled)
-    const preferModel = model || 'gpt-image-1'
+    const preferModel = model || 'nano-banana'
     const key: KeyConfig | undefined = keys.find(k => k.chatModels.includes('dall-e-3') || k.chatModels.includes(preferModel)) || keys[0]
     if (!key) {
       res.send({ status: 'Fail', message: 'No available API key', data: null })
