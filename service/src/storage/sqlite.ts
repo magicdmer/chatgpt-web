@@ -200,11 +200,12 @@ const promisifyAll = <T extends Record<string, any>>(sql: string, params: any[] 
 }
 
 // 插入聊天信息
-export async function insertChat(uuid: number, text: string, roomId: number, options?: ChatOptions) {
+export async function insertChat(uuid: number, text: string, roomId: number, options?: ChatOptions, images?: string[]) {
   const chatInfo = new ChatInfo(roomId, uuid, text, options)
+  chatInfo.images = Array.isArray(images) ? images : []
   return new Promise<ChatInfo>((resolve, reject) => {
-    const sql = 'INSERT INTO chat (roomId, uuid, dateTime, prompt, options) VALUES (?, ?, ?, ?, ?)'
-    db.run(sql, [roomId, uuid, chatInfo.dateTime, text, JSON.stringify(options || new ChatOptions())], function(err) {
+    const sql = 'INSERT INTO chat (roomId, uuid, dateTime, prompt, images, options) VALUES (?, ?, ?, ?, ?, ?)'
+    db.run(sql, [roomId, uuid, chatInfo.dateTime, text, JSON.stringify(chatInfo.images || []), JSON.stringify(options || new ChatOptions())], function(err) {
       if (err) reject(err)
       else {
         chatInfo.id = this.lastID
@@ -226,6 +227,7 @@ export async function getChatByMessageId(messageId: string): Promise<ChatInfo | 
     JSON.parse(row.options)
   )
   chatInfo.id = row.id
+  chatInfo.images = row.images ? JSON.parse(row.images) : []
   chatInfo.dateTime = row.dateTime
   chatInfo.response = row.response
   chatInfo.status = row.status
@@ -882,6 +884,7 @@ export async function getChat(roomId: number, uuid: number): Promise<ChatInfo | 
   
   const chatInfo = new ChatInfo(row.roomId, row.uuid, row.prompt, JSON.parse(row.options))
   chatInfo.id = row.id
+  chatInfo.images = row.images ? JSON.parse(row.images) : []
   chatInfo.response = row.response
   chatInfo.status = row.status
   chatInfo.previousResponse = row.previousResponse ? JSON.parse(row.previousResponse) : undefined

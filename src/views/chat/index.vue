@@ -13,7 +13,7 @@ import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAuthStore, useChatStore, usePromptStore } from '@/store'
-import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchUploadImages, fetchImageVision, fetchImageEdit } from '@/api'
+import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchUploadImages, fetchImageEdit } from '@/api'
 import { buildExtraBody } from '@/utils/extraBody'
 import { t } from '@/locales'
 import { debounce } from '@/utils/functions/debounce'
@@ -173,7 +173,7 @@ async function onConversation() {
       inversion: true,
       error: false,
       conversationOptions: null,
-      requestOptions: { prompt: message, options: null },
+      requestOptions: { prompt: message, options: null, images: imagesToSend.length > 0 ? imagesToSend : undefined },
     },
   )
   scrollToBottom()
@@ -183,9 +183,49 @@ async function onConversation() {
 
   let options: Chat.ConversationRequest = {}
   const lastContext = conversationList.value[conversationList.value.length - 1]?.conversationOptions
+  const extractImageUrls = (s: string) => {
+    const result: string[] = []
+    const md = [...String(s || '').matchAll(/\!\[[^\]]*\]\(([^)]+)\)/g)].map(m => m[1])
+    const html = [...String(s || '').matchAll(/<img[^>]*src=["']([^"']+)["'][^>]*>/gi)].map(m => m[1])
+    md.forEach(u => result.push(u))
+    html.forEach(u => result.push(u))
+    return Array.from(new Set(result))
+  }
+  const findLastAssistantImages = () => {
+    for (let i = dataSources.value.length - 1; i >= 0; i--) {
+      const item = dataSources.value[i]
+      if (!item.inversion && item.text) {
+        const urls = extractImageUrls(item.text)
+        if (urls.length > 0) return urls
+      }
+    }
+    return []
+  }
+  const findNearestUserImages = () => {
+    for (let i = dataSources.value.length - 1; i >= 0; i--) {
+      const item = dataSources.value[i]
+      const imgs = (item?.requestOptions as any)?.images || []
+      if (imgs.length > 0) return imgs
+    }
+    return []
+  }
+  let clearContextForEdit = false
+  // 仅在 usingContext=true 时才进行历史图片回溯；usingContext=false 完全输入驱动，不做图片回填
+  if (usingContext.value && imagesToSend.length === 0) {
+    const assistantImages = findLastAssistantImages()
+    if (assistantImages.length > 0) {
+      imagesToSend.push(...assistantImages)
+      clearContextForEdit = true
+    }
+    else {
+      const nearestUserImages = findNearestUserImages()
+      if (nearestUserImages.length > 0)
+        imagesToSend.push(...nearestUserImages)
+    }
+  }
 
   if (lastContext && usingContext.value)
-    options = { ...lastContext }
+    options = clearContextForEdit ? {} : { ...lastContext }
 
   addChat(
     +uuid,
@@ -199,7 +239,7 @@ async function onConversation() {
       thinking: '',
       thinkingExpanded: false,
       conversationOptions: null,
-      requestOptions: { prompt: message, options: { ...options } },
+      requestOptions: { prompt: message, options: { ...options }, images: imagesToSend.length > 0 ? imagesToSend : undefined },
     },
   )
   scrollToBottom()
@@ -213,67 +253,41 @@ async function onConversation() {
         .replace(/\!\[[^\]]*\]\([^)]+\)/g, '')
         .replace(/<img[^>]*>/gi, '')
         .trim()
-      // 如有图片附件，依据模式选择识图或编辑
-      if (imagesToSend.length > 0) {
-        if (isEditMode.value) {
-          const editRes = await fetchImageEdit<{ markdown?: string; url?: string; urls?: string[] }>({
-            prompt: message,
-            images: imagesToSend,
-            roomId: +uuid,
-            messageUuid: chatUuid,
-            model: currentChatModel.value
-          })
-          const markdown = (editRes as any)?.data?.markdown
-          const urls = (editRes as any)?.data?.urls || []
-          const url = (editRes as any)?.data?.url
-          const text = markdown || (urls.length > 0 ? urls.map((u: string) => `![edited](${u})`).join('\n') : (url ? `![edited](${url})` : ''))
-          updateChat(
-            +uuid,
-            dataSources.value.length - 1,
-            {
-              dateTime: new Date().toLocaleString(),
-              text,
-              inversion: false,
-              error: false,
-              loading: false,
-              thinking: '',
-              thinkingExpanded: false,
-              conversationOptions: null,
-              requestOptions: { prompt: message, options: { ...options } },
-            },
-          )
-        }
-        else {
-          const vision = await fetchImageVision<{ text: string }>({
-            prompt: stripImageFromMarkdown(message),
-            images: imagesToSend,
-            model: currentChatModel.value,
-            roomId: +uuid,
-            messageUuid: chatUuid
-          })
-          const text = (vision as any)?.data?.text || ''
-          updateChat(
-            +uuid,
-            dataSources.value.length - 1,
-            {
-              dateTime: new Date().toLocaleString(),
-              text,
-              inversion: false,
-              error: false,
-              loading: false,
-              thinking: '',
-              thinkingExpanded: false,
-              conversationOptions: null,
-              requestOptions: { prompt: message, options: { ...options } },
-            },
-          )
-        }
+      // 如有图片附件：编辑模式仍走图片编辑；否则统一走 chat-process 并携带图片
+      if (imagesToSend.length > 0 && isEditMode.value) {
+        const editRes = await fetchImageEdit<{ markdown?: string; url?: string; urls?: string[] }>({
+          prompt: message,
+          images: imagesToSend,
+          roomId: +uuid,
+          messageUuid: chatUuid,
+          model: currentChatModel.value
+        })
+        const markdown = (editRes as any)?.data?.markdown
+        const urls = (editRes as any)?.data?.urls || []
+        const url = (editRes as any)?.data?.url
+        const text = markdown || (urls.length > 0 ? urls.map((u: string) => `![edited](${u})`).join('\n') : (url ? `![edited](${url})` : ''))
+        updateChat(
+          +uuid,
+          dataSources.value.length - 1,
+          {
+            dateTime: new Date().toLocaleString(),
+            text,
+            inversion: false,
+            error: false,
+            loading: false,
+            thinking: '',
+            thinkingExpanded: false,
+            conversationOptions: null,
+            requestOptions: { prompt: message, options: { ...options } },
+          },
+        )
         return
       }
       await fetchChatAPIProcess<Chat.ConversationResponse>({
         roomId: +uuid,
         uuid: chatUuid,
-        prompt: message,
+        prompt: imagesToSend.length > 0 ? stripImageFromMarkdown(message) : message,
+        images: imagesToSend.length > 0 ? imagesToSend : undefined,
         options,
         extra_body: extraBody,
         signal: controller.signal,
@@ -311,7 +325,7 @@ async function onConversation() {
                 thinking: lastThinking,
                 thinkingExpanded: false,
                 conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
-                requestOptions: { prompt: message, options: { ...options } },
+                requestOptions: { prompt: message, options: { ...options }, images: imagesToSend.length > 0 ? imagesToSend : undefined },
                 usage,
               },
             )
@@ -427,11 +441,17 @@ async function onRegenerate(index: number) {
     let lastThinking = ''
     const fetchChatAPIOnce = async () => {
       const extraBody = buildExtraBody(currentChatModel.value, usingThinking.value)
+      const originalImages: string[] = (dataSources.value[index]?.requestOptions as any)?.images || []
+      const stripImageFromMarkdown = (s: string) => String(s || '')
+        .replace(/\!\[[^\]]*\]\([^)]+\)/g, '')
+        .replace(/<img[^>]*>/gi, '')
+        .trim()
       await fetchChatAPIProcess<Chat.ConversationResponse>({
         roomId: +uuid,
         uuid: chatUuid || Date.now(),
         regenerate: true,
-        prompt: message,
+        prompt: originalImages.length > 0 ? stripImageFromMarkdown(message) : message,
+        images: originalImages.length > 0 ? originalImages : undefined,
         options,
         extra_body: extraBody,
         signal: controller.signal,
@@ -470,7 +490,7 @@ async function onRegenerate(index: number) {
                 thinking: lastThinking,
                 thinkingExpanded: false,
                 conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
-                requestOptions: { prompt: message, options: { ...options } },
+                requestOptions: { prompt: message, options: { ...options }, images: originalImages.length > 0 ? originalImages : undefined },
                 usage,
               },
             )

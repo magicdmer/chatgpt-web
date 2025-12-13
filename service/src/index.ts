@@ -204,59 +204,6 @@ router.post('/upload-images', auth, upload.array('files', 10), async (req, res) 
   }
 })
 
-// ---- Image Vision (recognition) ----
-router.post('/image-vision', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const { prompt, images, model, roomId, messageUuid } = req.body as { prompt: string; images: string[]; model?: string; roomId?: number; messageUuid?: number }
-    if (!prompt || !Array.isArray(images) || images.length === 0) {
-      res.send({ status: 'Fail', message: 'Missing prompt or images', data: null })
-      return
-    }
-
-    // select key by user roles and model capability
-    const keys = (await getCacheApiKeys()).filter(k => k.status !== Status.Disabled)
-    const preferModel = model || 'gemini-2.5-flash'
-    const key: KeyConfig | undefined = keys.find(k => k.chatModels.includes(preferModel)) || keys[0]
-    if (!key) {
-      res.send({ status: 'Fail', message: 'No available API key', data: null })
-      return
-    }
-    const client = await createClient(key)
-
-    const content: any[] = [{ type: 'text', text: prompt }]
-    for (const u of images) {
-      const maybeData = await toDataUrlIfLocal(u)
-      const finalUrl = (maybeData.startsWith('data:'))
-        ? maybeData
-        : (u.startsWith('/uploads/')
-          ? `${req.protocol}://${req.get('host')}${u}`
-          : buildAbsoluteUrl(maybeData))
-      content.push({ type: 'image_url', image_url: { url: finalUrl } })
-    }
-
-    const completion = await client.chat.completions.create({
-      model: preferModel,
-      messages: [{ role: 'user', content }],
-    })
-    const text = completion?.choices?.[0]?.message?.content || ''
-    try {
-      if (roomId && await existsChatRoom(userId, Number(roomId))) {
-        const attachmentsMarkdown = Array.isArray(images) && images.length > 0
-          ? images.map((u: string) => `![image](${buildAbsoluteUrl(u)})`).join('\n')
-          : ''
-        const userText = attachmentsMarkdown ? `${prompt}\n\n${attachmentsMarkdown}` : prompt
-        const msg = await insertChat(Number(messageUuid || Date.now()), userText, Number(roomId), {} as any)
-        await updateChat(String(msg.id), text, '', '', null as any)
-      }
-    } catch {}
-    res.send({ status: 'Success', message: null, data: { text } })
-  }
-  catch (error: any) {
-    res.send({ status: 'Fail', message: error?.message || String(error), data: null })
-  }
-})
-
 // ---- Image Edit (image-to-image) ----
 router.post('/image-edit', auth, async (req, res) => {
   try {
@@ -599,6 +546,7 @@ router.get('/chat-response-history', auth, async (req, res) => {
         requestOptions: {
           prompt: chat.prompt,
           parentMessageId: response.options.parentMessageId,
+          images: (chat as any)?.images || [],
           options: {
             parentMessageId: response.options.messageId,
             conversationId: response.options.conversationId,
@@ -663,7 +611,7 @@ router.post('/chat-clear', auth, async (req, res) => {
 router.post('/chat-process', [auth, limiter], async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
-  let { roomId, uuid, regenerate, prompt, options = {}, extra_body, systemMessage, temperature, top_p } = req.body as RequestProps
+  let { roomId, uuid, regenerate, prompt, images = [], options = {}, extra_body, systemMessage, temperature, top_p } = req.body as RequestProps
   const userId = req.headers.userId as string
   const room = await getChatRoom(userId, roomId)
   if (room == null)
@@ -684,12 +632,38 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       }
     }
 
+    // 若携带图片，写入用户消息时附加 Markdown 以便历史可视
+    let userTextForInsert = prompt
+    if (!regenerate && Array.isArray(images) && images.length > 0) {
+      const attachmentsMarkdown = images.map((u: string) => `![image](${buildAbsoluteUrl(u)})`).join('\n')
+      userTextForInsert = attachmentsMarkdown ? `${prompt}\n\n${attachmentsMarkdown}` : prompt
+    }
     message = regenerate
       ? await getChat(roomId, uuid)
-      : await insertChat(uuid, prompt, roomId, options as ChatOptions)
+      : await insertChat(uuid, userTextForInsert, roomId, options as ChatOptions, images)
     let firstChunk = true
+    // 如有图片，将其转换为 visionContent 传入底层，复用统一流式输出逻辑
+    let visionContent: any[] | undefined
+    const effectiveImages = (Array.isArray(images) && images.length > 0)
+      ? images
+      : ((message as any)?.images || [])
+    if (Array.isArray(effectiveImages) && effectiveImages.length > 0) {
+      const content: any[] = [{ type: 'text', text: prompt }]
+      for (const u of effectiveImages) {
+        const maybeData = await toDataUrlIfLocal(u)
+        const finalUrl = (maybeData.startsWith('data:'))
+          ? maybeData
+          : (String(u).startsWith('/uploads/')
+            ? `${req.protocol}://${req.get('host')}${u}`
+            : buildAbsoluteUrl(maybeData))
+        content.push({ type: 'image_url', image_url: { url: finalUrl } })
+      }
+      visionContent = content
+    }
+
     result = await chatReplyProcess({
       message: prompt,
+      visionContent,
       lastContext: options,
       process: (chat: ChatMessage) => {
         lastResponse = chat
@@ -730,8 +704,8 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       result.data.detail.usage = new UsageResponse()
       // 使用更贴近当前模型的分词器做估算，无法精确时回退到 gpt-3.5
       const tokenizerModel = mapModelForTokenizer(room?.chatModel)
-      result.data.detail.usage.prompt_tokens = textTokens(prompt, tokenizerModel)
-      result.data.detail.usage.completion_tokens = textTokens(result.data.text, tokenizerModel)
+      result.data.detail.usage.prompt_tokens = textTokens(prompt, tokenizerModel as any)
+      result.data.detail.usage.completion_tokens = textTokens(result.data.text, tokenizerModel as any)
       result.data.detail.usage.total_tokens = result.data.detail.usage.prompt_tokens + result.data.detail.usage.completion_tokens
       result.data.detail.usage.estimated = true
     }
@@ -741,8 +715,8 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       const tokenizerModel = mapModelForTokenizer(room?.chatModel)
       const needEstimate = (u.prompt_tokens == null) || (u.completion_tokens == null) || (u.total_tokens == null)
       if (needEstimate) {
-        u.prompt_tokens = u.prompt_tokens ?? textTokens(prompt, tokenizerModel)
-        u.completion_tokens = u.completion_tokens ?? textTokens(result.data.text, tokenizerModel)
+        u.prompt_tokens = u.prompt_tokens ?? textTokens(prompt, tokenizerModel as any)
+        u.completion_tokens = u.completion_tokens ?? textTokens(result.data.text, tokenizerModel as any)
         u.total_tokens = u.total_tokens ?? (u.prompt_tokens + u.completion_tokens)
         u.estimated = true
       }

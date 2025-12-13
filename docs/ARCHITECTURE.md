@@ -86,7 +86,7 @@
 上传与图片相关：
 - `POST /upload-image`（单文件上传，返回可访问的静态地址）
 - `POST /upload-images`（多文件上传，返回静态地址数组）
-- `POST /image-vision`（图文对话：文本 + 多图片，返回文本结果）
+- `POST /chat-process`（图文对话：文本 + 多图片，通过 `images: string[]` 携带，返回文本结果）
 - `POST /image-edit`（图片编辑/以图生图：支持可选 `mask`，返回图片 URL/Markdown）
 
 > 注意：部分接口需要 `root` 管理员权限（见后端 `rootAuth` 中间件）。
@@ -140,7 +140,7 @@
 
 图片与上传能力（后端路由）：
 - 上传接口：单图 `/upload-image` 与多图 `/upload-images`，返回静态访问路径（`service/src/index.ts:160, 176`）。
-- 图文对话：`/image-vision`，将多图片以 `image_url` 与文本共同提交到模型（`service/src/index.ts:185, 213-216`）。
+- 图文对话：`/chat-process`，请求体携带 `images: string[]`，后端转换为 `image_url` 与文本共同提交到模型。
 - 图片编辑：`/image-edit`，支持可选 `mask` 与多图片输入，返回图片 URL 或 Markdown（`service/src/index.ts:235, 253, 276`）。
 - 上传清理器：定时清理过期文件，清理间隔与保留时长可配置（`service/src/index.ts` 上传段落之后）。
 
@@ -193,7 +193,7 @@
 
 图片相关流转：
 - 上传：前端选择图片 -> 调用 `/upload-image(s)` -> 返回静态 URL -> 在输入区预览。
-- 图文对话：前端提交文本 + 图片 URL -> 调用 `/image-vision` -> 返回文本结果并写入房间消息。
+- 图文对话：前端提交文本 + 图片 URL -> 调用 `/chat-process`（携带 `images`）-> 返回文本结果并写入房间消息。
 - 图片编辑：前端选择源图 + 开启编辑按钮 -> 调用 `/image-edit` -> 返回图片 URL/Markdown 并写入房间消息。
 
 图文对话和图片编辑是通过是否开启编辑按钮来区分的。

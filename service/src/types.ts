@@ -5,6 +5,7 @@ export interface RequestProps {
   uuid: number
   regenerate: boolean
   prompt: string
+  images?: string[]
   options?: ChatContext
   extra_body?: Record<string, any>
   systemMessage: string

@@ -143,7 +143,7 @@ async function chatReplyProcess(options: RequestOptions) {
     }
 
     // 构造消息上下文
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: any }> = []
     if (isNotEmptyString(systemMsg)) messages.push({ role: 'system', content: systemMsg })
     if (lastContext?.parentMessageId) {
       let pid: string | undefined = lastContext.parentMessageId
@@ -158,7 +158,12 @@ async function chatReplyProcess(options: RequestOptions) {
       }
       messages.push(...backlog)
     }
-    messages.push({ role: 'user', content: message })
+    if (options.visionContent && Array.isArray(options.visionContent) && options.visionContent.length > 0) {
+      messages.push({ role: 'user', content: options.visionContent })
+    }
+    else {
+      messages.push({ role: 'user', content: message })
+    }
 
     const client = await createClient(key)
     const abort = new AbortController()

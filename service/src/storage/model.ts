@@ -151,6 +151,7 @@ export class ChatInfo {
   uuid: number
   dateTime: number
   prompt: string
+  images?: string[]
   response?: string
   status: Status = Status.Normal
   options: ChatOptions

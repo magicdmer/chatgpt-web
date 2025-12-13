@@ -12,7 +12,7 @@ declare namespace Chat {
     thinking?: string
     thinkingExpanded?: boolean
     conversationOptions?: ConversationRequest | null
-    requestOptions: { prompt: string; options?: ConversationRequest | null }
+    requestOptions: { prompt: string; options?: ConversationRequest | null; images?: string[] }
     usage?: {
       completion_tokens: number
       prompt_tokens: number

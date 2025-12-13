@@ -15,6 +15,7 @@ export function fetchChatAPIProcess<T = any>(
     uuid: number
     regenerate?: boolean
     prompt: string
+    images?: string[]
     options?: { conversationId?: string; parentMessageId?: string }
     extra_body?: Record<string, any>
     signal?: GenericAbortSignal
@@ -27,6 +28,7 @@ export function fetchChatAPIProcess<T = any>(
     uuid: params.uuid,
     regenerate: params.regenerate || false,
     prompt: params.prompt,
+    images: params.images,
     options: params.options,
     extra_body: params.extra_body,
   }
@@ -205,13 +207,6 @@ export function fetchUploadImages<T = any>(form: FormData) {
     url: '/upload-images',
     data: () => form,
     headers: { 'Content-Type': 'multipart/form-data' },
-  })
-}
-
-export function fetchImageVision<T = any>(payload: { prompt: string; images: string[]; model?: string; roomId?: number; messageUuid?: number }) {
-  return post<T>({
-    url: '/image-vision',
-    data: payload,
   })
 }
 
