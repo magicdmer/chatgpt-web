@@ -555,10 +555,16 @@ async function onResponseHistory(index: number, historyIndex: number) {
       text: chat.text,
       inversion: false,
       responseCount: chat.responseCount,
-      error: true,
+      error: chat.error ?? false,
       loading: false,
+      thinking: chat.thinking || '',
+      thinkingExpanded: false,
       conversationOptions: chat.conversationOptions,
-      requestOptions: { prompt: chat.requestOptions.prompt, options: { ...chat.requestOptions.options } },
+      requestOptions: {
+        prompt: chat.requestOptions.prompt,
+        options: { ...chat.requestOptions.options },
+        images: (chat.requestOptions as any)?.images || undefined,
+      },
       usage: chat.usage,
     },
   )
