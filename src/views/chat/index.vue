@@ -38,7 +38,7 @@ const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom, scrollTo } = useScr
 const { uuid } = route.params as { uuid: string }
 
 const currentChatHistory = computed(() => chatStore.getChatHistoryByCurrentActive)
-const usingContext = computed(() => currentChatHistory?.value?.usingContext ?? true)
+const usingContext = computed(() => !!(currentChatHistory?.value?.usingContext ?? true))
 const currentChatModel = computed(() => currentChatHistory?.value?.chatModel ?? 'gpt-3.5-turbo')
 const usingThinking = computed(() => currentChatHistory?.value?.usingThinking ?? false)
 const dataSources = computed(() => chatStore.getChatByUuid(+uuid))
@@ -939,7 +939,6 @@ onUnmounted(() => {
             </template>
           </NButton>
         </div>
-        <input ref="fileInputRef" type="file" accept="image/*" multiple class="hidden" @change="onFilesSelected">
         <div v-if="attachedImageUrls.length > 0" class="mt-2 flex flex-wrap gap-2">
           <div
             v-for="(u, index) in attachedImageUrls"
@@ -972,6 +971,7 @@ onUnmounted(() => {
       </NSpace>
     </div>
   </footer>
+  <input ref="fileInputRef" type="file" style="position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; z-index: -1;" accept="image/*" multiple @change="onFilesSelected">
   <Prompt v-if="showPrompt" v-model:roomId="uuid" v-model:visible="showPrompt" />
 </div>
 </template>
