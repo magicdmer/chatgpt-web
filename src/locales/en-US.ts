@@ -75,6 +75,10 @@ export default {
     deleteKey: 'Delete Key',
     editKeyButton: 'Edit Key',
     deleteKeyConfirm: 'Are you sure to delete this key?',
+    contextDisabledByDraw: 'Cannot enable context in Draw mode',
+    turnOffContextBecauseDraw: 'Draw mode enabled, context automatically disabled',
+    turnOnDraw: 'Draw mode enabled, each prompt will generate a new image',
+    turnOffDraw: 'Draw mode disabled',
   },
   setting: {
     setting: 'Setting',

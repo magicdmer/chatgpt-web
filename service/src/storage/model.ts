@@ -106,6 +106,7 @@ export class ChatRoom {
   prompt: string = ''
   usingContext: boolean
   usingThinking?: boolean
+  usingDraw?: boolean
   status: Status = Status.Normal
   chatModel: string
   constructor(userId: string, title: string, roomId: number, chatModel: string) {
@@ -114,6 +115,7 @@ export class ChatRoom {
     this.roomId = roomId
     this.usingContext = true
     this.usingThinking = false
+    this.usingDraw = false
     this.chatModel = chatModel
   }
 }

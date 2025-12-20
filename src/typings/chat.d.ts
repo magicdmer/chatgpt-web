@@ -30,6 +30,7 @@ declare namespace Chat {
     prompt?: string
     usingContext: boolean
     usingThinking?: boolean
+    usingDraw?: boolean
     chatModel: string
   }
 

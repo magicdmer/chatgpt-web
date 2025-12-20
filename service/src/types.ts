@@ -11,6 +11,7 @@ export interface RequestProps {
   systemMessage: string
   temperature?: number
   top_p?: number
+  draw?: boolean
 }
 
 export interface ChatContext {

@@ -33,6 +33,7 @@ export interface RequestOptions {
   messageId: string
   tryCount: number
   room: ChatRoom
+  draw?: boolean
 }
 
 export interface BalanceResponse {

@@ -43,7 +43,7 @@ export async function createClient(key: KeyConfig) {
 
   const customFetch = await setupProxyFetch()
 
-  return new OpenAI({ apiKey: key.key, baseURL, fetch: customFetch ?? undefined })
+  return new OpenAI({ apiKey: key.key, baseURL, fetch: customFetch as any ?? undefined })
 }
 
 // 列出给定密钥/基地地址下的模型列表，用于前端动态刷新
@@ -95,6 +95,37 @@ async function draw(url: string, key: string, prompt: string, model: string): Pr
   }
 }
 
+async function mg_draw(url: string, key: string, prompt: string, model: string): Promise<string> {
+  const payload = {
+    model,
+    prompt
+  }
+
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': key,
+      },
+    })
+
+    if (response.data?.code !== 0) {
+      throw new Error('Image generation failed')
+    }
+
+    const imageUrl = response.data.image
+    if (!imageUrl) {
+      throw new Error('No image URL in response')
+    }
+
+    return `![我的图片](${imageUrl})`
+  }
+  catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 const processThreads: { userId: string; abort: AbortController; messageId: string }[] = []
 
 async function chatReplyProcess(options: RequestOptions) {
@@ -106,11 +137,20 @@ async function chatReplyProcess(options: RequestOptions) {
   if (key == null || key === undefined)
     throw new Error('没有可用的配置。请再试一次 | No available configuration. Please try again.')
 
-  const { message, lastContext, process, systemMessage, temperature, top_p } = options
+  const { message, lastContext, process: streamProcess, systemMessage, temperature, top_p } = options
 
-  if (chatModel === 'dall-e-2' || chatModel === 'dall-e-3') {
+  if (options.draw) {
+    const mgApiKey = process.env.MG_API_KEY
+    const mgApiUrl = process.env.MG_API_BASE_URL
     try {
-      const imageUrl = await draw(`${key.apiBaseUrl}/v1/images/generations`, key.key, message, chatModel)
+      let imageUrl = ''
+      if (mgApiKey && mgApiUrl) {
+        imageUrl = await mg_draw(`${mgApiUrl}/private/ai_draw`, mgApiKey, message, chatModel)
+      }
+      else {
+        imageUrl = await draw(`${key.apiBaseUrl}/v1/images/generations`, key.key, message, chatModel)
+      }
+
       const dataRes = {
         status: 'Success',
         message: '',
@@ -119,8 +159,8 @@ async function chatReplyProcess(options: RequestOptions) {
 
       return sendResponse({ type: 'Success', data: dataRes })
     }
-    catch (error) {
-      return sendResponse({ type: 'Fail', message: error })
+    catch (error: any) {
+      return sendResponse({ type: 'Fail', message: error.message ?? error })
     }
   }
 
@@ -255,7 +295,7 @@ async function chatReplyProcess(options: RequestOptions) {
         thinking: thinkingDelta || undefined,
         detail: { choices: [{ finish_reason: finishReason }] },
       }
-      process?.(partial)
+      streamProcess?.(partial)
     }
 
     // usage 可能在最终块返回，若没有则由路由层估算兜底

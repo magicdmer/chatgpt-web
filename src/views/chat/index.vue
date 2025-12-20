@@ -41,6 +41,7 @@ const currentChatHistory = computed(() => chatStore.getChatHistoryByCurrentActiv
 const usingContext = computed(() => !!(currentChatHistory?.value?.usingContext ?? true))
 const currentChatModel = computed(() => currentChatHistory?.value?.chatModel ?? 'gpt-3.5-turbo')
 const usingThinking = computed(() => currentChatHistory?.value?.usingThinking ?? false)
+const usingDraw = computed(() => currentChatHistory?.value?.usingDraw ?? false)
 const dataSources = computed(() => chatStore.getChatByUuid(+uuid))
 const conversationList = computed(() => dataSources.value.filter(item => (!item.inversion && !!item.conversationOptions)))
 
@@ -290,6 +291,7 @@ async function onConversation() {
         images: imagesToSend.length > 0 ? imagesToSend : undefined,
         options,
         extra_body: extraBody,
+        draw: usingDraw.value,
         signal: controller.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
@@ -454,6 +456,7 @@ async function onRegenerate(index: number) {
         images: originalImages.length > 0 ? originalImages : undefined,
         options,
         extra_body: extraBody,
+        draw: usingDraw.value,
         signal: controller.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
@@ -712,12 +715,40 @@ async function handleToggleUsingContext() {
   if (!currentChatHistory.value)
     return
 
+  if (usingDraw.value) {
+    ms.warning(t('chat.contextDisabledByDraw'))
+    return
+  }
+
   currentChatHistory.value.usingContext = !currentChatHistory.value.usingContext
   chatStore.setUsingContext(currentChatHistory.value.usingContext, +uuid)
   if (currentChatHistory.value.usingContext)
     ms.success(t('chat.turnOnContext'))
   else
     ms.warning(t('chat.turnOffContext'))
+}
+
+async function handleToggleUsingDraw() {
+  if (!currentChatHistory.value)
+    return
+
+  const newValue = !currentChatHistory.value.usingDraw
+  currentChatHistory.value.usingDraw = newValue
+  await chatStore.setUsingDraw(newValue, +uuid)
+
+  if (newValue) {
+    if (currentChatHistory.value.usingContext) {
+      currentChatHistory.value.usingContext = false
+      await chatStore.setUsingContext(false, +uuid)
+      ms.warning(t('chat.turnOffContextBecauseDraw'))
+    }
+    else {
+      ms.success(t('chat.turnOnDraw'))
+    }
+  }
+  else {
+    ms.warning(t('chat.turnOffDraw'))
+  }
 }
 
 // 可优化部分
@@ -876,13 +907,18 @@ onUnmounted(() => {
               </span>
             </HoverButton>
             <HoverButton v-if="!isMobile" @click="handleToggleUsingContext">
-              <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingContext, 'text-[#a8071a]': !usingContext }">
+              <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingContext, 'text-[#a8071a]': !usingContext && !usingDraw, 'text-gray-400': usingDraw }">
                 <SvgIcon icon="ri:chat-history-line" />
               </span>
             </HoverButton>
           <HoverButton v-if="!isMobile" @click="handleToggleUsingThinking">
             <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingThinking, 'text-[#a8071a]': !usingThinking }">
               <SvgIcon icon="ri:lightbulb-line" />
+            </span>
+          </HoverButton>
+          <HoverButton v-if="!isMobile" @click="handleToggleUsingDraw">
+            <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingDraw, 'text-[#a8071a]': !usingDraw }">
+              <SvgIcon icon="ri:image-line" />
             </span>
           </HoverButton>
           <HoverButton v-if="!isMobile" @click="triggerAttach">
@@ -905,6 +941,11 @@ onUnmounted(() => {
           <HoverButton v-if="isMobile" @click="handleClear">
             <span class="text-xl text-[#4f555e] dark:text-white">
               <SvgIcon icon="ri:delete-bin-line" />
+            </span>
+          </HoverButton>
+          <HoverButton v-if="isMobile" @click="handleToggleUsingDraw">
+            <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingDraw, 'text-[#a8071a]': !usingDraw }">
+              <SvgIcon icon="ri:image-line" />
             </span>
           </HoverButton>
           <HoverButton v-if="isMobile" @click="triggerAttach">

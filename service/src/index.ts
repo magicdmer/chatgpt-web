@@ -41,6 +41,7 @@ import {
   updateRoomPrompt,
   updateRoomUsingContext,
   updateRoomUsingThinking,
+  updateRoomUsingDraw,
   updateUser,
   updateUserInfo,
   updateUserPassword,
@@ -306,6 +307,7 @@ router.get('/chatrooms', auth, async (req, res) => {
         prompt: r.prompt,
         usingContext: r.usingContext === undefined ? true : r.usingContext,
         usingThinking: r.usingThinking === undefined ? false : r.usingThinking,
+        usingDraw: r.usingDraw === undefined ? false : r.usingDraw,
         chatModel: (r.chatModel === undefined || r.chatModel === null) ? 'gpt-3.5-turbo' : r.chatModel,
       }
       result.push(item)
@@ -398,15 +400,33 @@ router.post('/room-thinking', auth, async (req, res) => {
   try {
     const userId = req.headers.userId as string
     const { using, roomId } = req.body as { using: boolean; roomId: number }
-    const success = await updateRoomUsingThinking(userId, roomId, using)
-    if (success)
-      res.send({ status: 'Success', message: 'Saved successfully', data: null })
-    else
-      res.send({ status: 'Fail', message: 'Saved Failed', data: null })
+    if (!roomId || !await existsChatRoom(userId, roomId)) {
+      res.send({ status: 'Fail', message: 'Unknow room', data: null })
+      return
+    }
+    await updateRoomUsingThinking(userId, roomId, using)
+    res.send({ status: 'Success', message: null, data: null })
   }
   catch (error) {
     console.error(error)
-    res.send({ status: 'Fail', message: 'Rename error', data: null })
+    res.send({ status: 'Fail', message: 'Update error', data: null })
+  }
+})
+
+router.post('/room-draw', auth, async (req, res) => {
+  try {
+    const userId = req.headers.userId as string
+    const { using, roomId } = req.body as { using: boolean; roomId: number }
+    if (!roomId || !await existsChatRoom(userId, roomId)) {
+      res.send({ status: 'Fail', message: 'Unknow room', data: null })
+      return
+    }
+    await updateRoomUsingDraw(userId, roomId, using)
+    res.send({ status: 'Success', message: null, data: null })
+  }
+  catch (error) {
+    console.error(error)
+    res.send({ status: 'Fail', message: 'Update error', data: null })
   }
 })
 
@@ -611,7 +631,7 @@ router.post('/chat-clear', auth, async (req, res) => {
 router.post('/chat-process', [auth, limiter], async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
-  let { roomId, uuid, regenerate, prompt, images = [], options = {}, extra_body, systemMessage, temperature, top_p } = req.body as RequestProps
+  let { roomId, uuid, regenerate, prompt, images = [], options = {}, extra_body, systemMessage, temperature, top_p, draw } = req.body as RequestProps
   const userId = req.headers.userId as string
   const room = await getChatRoom(userId, roomId)
   if (room == null)
@@ -695,6 +715,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       messageId: message.id.toString(),
       tryCount: 0,
       room,
+      draw,
     })
       
     // return the whole response including usage
@@ -762,7 +783,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
           (result.data as any).thinking as string)
       }
 
-      if (result.data.detail?.usage) {
+      if (result.data.detail?.usage && result.data.id) {
         await insertChatUsage(req.headers.userId,
           roomId,
           message.id,

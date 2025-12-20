@@ -19,6 +19,7 @@ export function fetchChatAPIProcess<T = any>(
     options?: { conversationId?: string; parentMessageId?: string }
     extra_body?: Record<string, any>
     signal?: GenericAbortSignal
+    draw?: boolean
     onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void },
 ) {
   const settingStore = useSettingStore()
@@ -31,6 +32,7 @@ export function fetchChatAPIProcess<T = any>(
     images: params.images,
     options: params.options,
     extra_body: params.extra_body,
+    draw: params.draw,
   }
 
   data = {
@@ -181,6 +183,13 @@ export function fetchUpdateChatRoomUsingContext<T = any>(using: boolean, roomId:
 export function fetchUpdateChatRoomUsingThinking<T = any>(using: boolean, roomId: number) {
   return post<T>({
     url: '/room-thinking',
+    data: { using, roomId },
+  })
+}
+
+export function fetchUpdateChatRoomUsingDraw<T = any>(using: boolean, roomId: number) {
+  return post<T>({
+    url: '/room-draw',
     data: { using, roomId },
   })
 }

@@ -75,6 +75,10 @@ export default {
     deleteKey: '删除 Key',
     editKeyButton: '编辑 Key',
     deleteKeyConfirm: '你确定要删除这个 key 吗?',
+    contextDisabledByDraw: '绘图模式下无法开启上下文',
+    turnOffContextBecauseDraw: '已开启绘图模式，自动关闭上下文',
+    turnOnDraw: '已开启绘图模式，每次对话都将生成新图片',
+    turnOffDraw: '已关闭绘图模式',
   },
   setting: {
     setting: '设置',

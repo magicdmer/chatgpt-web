@@ -27,6 +27,7 @@ interface ChatRoomDBRow {
   prompt?: string
   usingContext: boolean
   usingThinking?: boolean
+  usingDraw?: boolean
   status: number
   chatModel: string
 }
@@ -113,6 +114,11 @@ db.serialize(() => {
 
   // 尝试为 chat_room 增加 usingThinking 字段（若已存在则忽略错误）
   db.run('ALTER TABLE chat_room ADD COLUMN usingThinking BOOLEAN DEFAULT 0', [], (err) => {
+    // ignore error if column already exists
+  })
+  
+  // 尝试为 chat_room 增加 usingDraw 字段（若已存在则忽略错误）
+  db.run('ALTER TABLE chat_room ADD COLUMN usingDraw BOOLEAN DEFAULT 0', [], (err) => {
     // ignore error if column already exists
   })
 
@@ -260,6 +266,7 @@ export async function getChatRooms(userId: string): Promise<ChatRoom[]> {
     room.prompt = row.prompt || ''
     room.usingContext = row.usingContext
     room.usingThinking = row.usingThinking ?? false
+    room.usingDraw = row.usingDraw ?? false
     room.status = row.status
     room.chatModel = row.chatModel
     return room
@@ -681,6 +688,8 @@ export async function getChatRoom(userId: string, roomId: number): Promise<ChatR
   room.id = row.id
   room.prompt = row.prompt
   room.usingContext = row.usingContext
+  room.usingThinking = row.usingThinking ?? false
+  room.usingDraw = row.usingDraw ?? false
   room.status = row.status
   room.chatModel = row.chatModel
   return room
@@ -788,6 +797,30 @@ export async function updateRoomPrompt(userId: string, roomId: number, prompt: s
 export async function updateRoomUsingContext(userId: string, roomId: number, using: boolean): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const sql = 'UPDATE chat_room SET usingContext = ? WHERE userId = ? AND roomId = ?'
+    db.run(sql, [using, userId, roomId], function(err) {
+      if (err) reject(err)
+      else resolve(this.changes > 0)
+    })
+  })
+}
+
+
+
+// 更新聊天室思考设置
+export async function updateRoomUsingThinking(userId: string, roomId: number, using: boolean): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const sql = 'UPDATE chat_room SET usingThinking = ? WHERE userId = ? AND roomId = ?'
+    db.run(sql, [using, userId, roomId], function(err) {
+      if (err) reject(err)
+      else resolve(this.changes > 0)
+    })
+  })
+}
+
+// 更新聊天室绘图设置
+export async function updateRoomUsingDraw(userId: string, roomId: number, using: boolean): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const sql = 'UPDATE chat_room SET usingDraw = ? WHERE userId = ? AND roomId = ?'
     db.run(sql, [using, userId, roomId], function(err) {
       if (err) reject(err)
       else resolve(this.changes > 0)
@@ -913,17 +946,6 @@ export async function updateChat(chatId: string, response: string, messageId: st
   }]
 
   return runTransaction(queries)
-}
-
-// 更新聊天室思考开关
-export async function updateRoomUsingThinking(userId: string, roomId: number, using: boolean): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const sql = 'UPDATE chat_room SET usingThinking = ? WHERE userId = ? AND roomId = ?'
-    db.run(sql, [using, userId, roomId], function(err) {
-      if (err) reject(err)
-      else resolve(this.changes > 0)
-    })
-  })
 }
 
 function initUserInfo(userInfo: UserInfo) {
