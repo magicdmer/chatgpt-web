@@ -218,12 +218,23 @@ async function chatReplyProcess(options: RequestOptions) {
     let reasoningFull = ''
     let lastThinkingLen = 0
 
+    let tools: any[] | undefined
+    if (model.startsWith('gemini-') && model.includes('flash')) {
+      tools = [{
+        type: 'function',
+        function: {
+          name: 'googleSearch'
+        }
+      }]
+    }
+
     const stream = await client.chat.completions.create({
       model,
       messages,
       temperature,
       top_p,
       stream: true,
+      ...(tools ? { tools } : {}),
       ...(options.extra_body ? { extra_body: options.extra_body } : {}),
     }, { signal: abort.signal, timeout: timeoutMs })
 
