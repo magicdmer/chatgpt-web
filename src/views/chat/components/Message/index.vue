@@ -186,7 +186,7 @@ async function handlePreviousResponse(next: number) {
         class="flex items-end gap-1 mt-2"
         :class="[inversion ? 'flex-row-reverse' : 'flex-row']"
       >
-        <div class="flex flex-col gap-2" :class="[inversion ? 'items-end' : 'items-start']" style="flex:1;">
+        <div class="flex flex-col gap-2 min-w-0" :class="[inversion ? 'items-end' : 'items-start']" style="flex:1;">
           <ThinkingBox v-if="!inversion && props.thinking && props.thinking.length > 0"
             :content="props.thinking"
             :expanded="props.thinkingExpanded"

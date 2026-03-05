@@ -24,6 +24,12 @@
 		background-color: #fff;
 	}
 
+	pre,
+	.code-block-wrapper {
+		max-width: 100%;
+		overflow-x: auto;
+	}
+
 	code.hljs {
 		padding: 0;
 	}
@@ -65,6 +71,29 @@
 		display: inline-block;
 	}
 
+}
+
+.message-reply,
+.message-request {
+	max-width: 100%;
+}
+
+.message-reply .markdown-body,
+.message-request .markdown-body {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.message-reply .whitespace-pre-wrap,
+.message-request .whitespace-pre-wrap {
+	max-width: 100%;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+.katexmath-block {
+	max-width: 100%;
+	overflow-x: auto;
 }
 
 html.dark {
