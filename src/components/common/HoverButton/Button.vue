@@ -12,9 +12,33 @@ function handleClick() {
 
 <template>
   <button
-    class="flex items-center justify-center w-10 h-10 transition rounded-full hover:bg-neutral-100 dark:hover:bg-[#414755]"
+    class="hover-btn"
     @click="handleClick"
   >
     <slot />
   </button>
 </template>
+
+<style scoped>
+.hover-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.hover-btn:hover {
+  background: var(--surface-hover);
+  transform: scale(1.08);
+}
+
+.hover-btn:active {
+  transform: scale(0.95);
+}
+</style>

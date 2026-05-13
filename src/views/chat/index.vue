@@ -4,7 +4,7 @@ import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, 
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import type { MessageReactive } from 'naive-ui'
-import { NAutoComplete, NButton, NInput, NSelect, NSpace, NSpin, useDialog, useMessage } from 'naive-ui'
+import { NAutoComplete, NDropdown, NInput, NSelect, NSpin, useDialog, useMessage } from 'naive-ui'
 import html2canvas from 'html2canvas'
 import { Message } from './components'
 import { useScroll } from './hooks/useScroll'
@@ -12,13 +12,13 @@ import { useChat } from './hooks/useChat'
 import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
+import { useIconRender } from '@/hooks/useIconRender'
 import { useAuthStore, useChatStore, usePromptStore } from '@/store'
 import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchUploadImages, fetchImageEdit } from '@/api'
 import { createController, abortController, hasController } from '@/utils/abortController'
 import { buildExtraBody } from '@/utils/extraBody'
 import { t } from '@/locales'
 import { debounce } from '@/utils/functions/debounce'
-import IconPrompt from '@/icons/Prompt.vue'
 const Prompt = defineAsyncComponent(() => import('@/components/common/Setting/Prompt.vue'))
 
 const openLongReply = import.meta.env.VITE_GLOB_OPEN_LONG_REPLY === 'true'
@@ -30,6 +30,7 @@ const authStore = useAuthStore()
 const chatStore = useChatStore()
 
 const { isMobile } = useBasicLayout()
+const { iconRender } = useIconRender()
 const { addChat, updateChat, updateChatSome, getChatByUuidAndIndex } = useChat()
 const { scrollRef, scrollToBottom, scrollToBottomIfAtBottom, scrollTo } = useScroll()
 
@@ -792,6 +793,33 @@ const placeholder = computed(() => {
   return t('chat.placeholder')
 })
 
+const moreMenuOptions = computed(() => [
+  {
+    label: t('chat.clearChat'),
+    key: 'clear',
+    icon: iconRender({ icon: 'ri:delete-bin-line' }),
+  },
+  {
+    label: t('chat.exportImage'),
+    key: 'export',
+    icon: iconRender({ icon: 'ri:download-2-line' }),
+  },
+  {
+    label: t('chat.roomPrompt'),
+    key: 'prompt',
+    icon: iconRender({ icon: 'ri:quill-pen-line' }),
+  },
+])
+
+function handleMoreSelect(key: string) {
+  if (key === 'clear')
+    handleClear()
+  else if (key === 'export')
+    handleExport()
+  else if (key === 'prompt')
+    showPrompt.value = true
+}
+
 const buttonDisabled = computed(() => {
   return loading.value || !prompt.value || prompt.value.trim() === ''
 })
@@ -853,14 +881,18 @@ onUnmounted(() => {
       <div id="scrollRef" ref="scrollRef" class="h-full overflow-hidden overflow-y-auto" @scroll="handleScroll">
         <div
           id="image-wrapper"
-          class="w-full max-w-screen-xl m-auto dark:bg-[#101014]"
+          class="w-full m-auto"
           :class="[isMobile ? 'p-2' : 'p-4']"
+          :style="!isMobile ? { maxWidth: '860px' } : {}"
         >
           <NSpin :show="firstLoading">
             <template v-if="!dataSources.length">
-              <div class="flex items-center justify-center mt-4 text-center text-neutral-300">
-                <SvgIcon icon="ri:bubble-chart-fill" class="mr-2 text-3xl" />
-                <span>Aha~</span>
+              <div class="empty-hero">
+                <div class="empty-hero-icon">
+                  <SvgIcon icon="ri:bubble-chart-fill" class="text-4xl" />
+                </div>
+                <h2 class="empty-hero-title">开始对话吧</h2>
+                <p class="empty-hero-subtitle">在下方输入框中输入消息，与 AI 开始交流</p>
               </div>
             </template>
             <template v-else>
@@ -881,13 +913,11 @@ onUnmounted(() => {
                   @delete="handleDelete(index)"
                   @response-history="(ev) => onResponseHistory(index, ev)"
                 />
-                <div class="sticky bottom-0 left-0 flex justify-center">
-                  <NButton v-if="loading" type="warning" @click="handleStop">
-                    <template #icon>
-                      <SvgIcon icon="ri:stop-circle-line" />
-                    </template>
-                    Stop Responding
-                  </NButton>
+                <div class="sticky bottom-0 left-0 flex justify-center pb-2">
+                  <button v-if="loading" class="stop-btn" @click="handleStop">
+                    <SvgIcon icon="ri:stop-circle-line" class="text-base" />
+                    <span>停止回复</span>
+                  </button>
                 </div>
               </div>
             </template>
@@ -896,131 +926,332 @@ onUnmounted(() => {
       </div>
     </main>
     <footer :class="footerClass">
-      <div class="w-full max-w-screen-xl m-auto">
-        <NSpace vertical>
-          <div class="flex items-center space-x-2">
-            <HoverButton v-if="!isMobile" @click="handleClear">
-              <span class="text-xl text-[#4f555e] dark:text-white">
-                <SvgIcon icon="ri:delete-bin-line" />
-              </span>
-            </HoverButton>
-            <HoverButton v-if="!isMobile" @click="handleExport">
-              <span class="text-xl text-[#4f555e] dark:text-white">
-                <SvgIcon icon="ri:download-2-line" />
-              </span>
-            </HoverButton>
-            <HoverButton v-if="!isMobile" @click="showPrompt = true">
-              <span class="text-xl text-[#4f555e] dark:text-white">
-                <IconPrompt class="w-[20px] m-auto" />
-              </span>
-            </HoverButton>
-            <HoverButton v-if="!isMobile" @click="handleToggleUsingContext">
-              <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingContext, 'text-[#a8071a]': !usingContext && !usingDraw, 'text-gray-400': usingDraw }">
-                <SvgIcon icon="ri:chat-history-line" />
-              </span>
-            </HoverButton>
-          <HoverButton v-if="!isMobile" @click="handleToggleUsingThinking">
-            <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingThinking, 'text-[#a8071a]': !usingThinking }">
-              <SvgIcon icon="ri:lightbulb-line" />
-            </span>
-          </HoverButton>
-          <HoverButton v-if="!isMobile" @click="handleToggleUsingDraw">
-            <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingDraw, 'text-[#a8071a]': !usingDraw }">
-              <SvgIcon icon="ri:image-line" />
-            </span>
-          </HoverButton>
-          <HoverButton v-if="!isMobile" @click="triggerAttach">
-            <span class="text-xl text-[#4f555e] dark:text-white">
-              <SvgIcon icon="ri:attachment-2" />
-            </span>
-          </HoverButton>
-          <HoverButton v-if="!isMobile && showEditButton" @click="isEditMode = !isEditMode">
-            <span class="text-xl" :class="{ 'text-[#4b9e5f]': isEditMode, 'text-[#4f555e] dark:text-white': !isEditMode }">
-              <SvgIcon icon="ri:scissors-cut-line" />
-            </span>
-          </HoverButton>
-          <NSelect
-            style="width: 250px"
-            :value="currentChatModel"
-            :options="authStore.session?.chatModels"
-            :disabled="!!authStore.session?.auth && !authStore.token"
-            @update-value="(val) => handleSyncChatModel(val)"
-          />
-          <HoverButton v-if="isMobile" @click="handleClear">
-            <span class="text-xl text-[#4f555e] dark:text-white">
-              <SvgIcon icon="ri:delete-bin-line" />
-            </span>
-          </HoverButton>
-          <HoverButton v-if="isMobile" @click="handleToggleUsingDraw">
-            <span class="text-xl" :class="{ 'text-[#4b9e5f]': usingDraw, 'text-[#a8071a]': !usingDraw }">
-              <SvgIcon icon="ri:image-line" />
-            </span>
-          </HoverButton>
-          <HoverButton v-if="isMobile" @click="triggerAttach">
-            <span class="text-xl text-[#4f555e] dark:text-white">
-              <SvgIcon icon="ri:attachment-2" />
-            </span>
-          </HoverButton>
-        </div>
-        <div class="flex items-center justify-between space-x-2">
-          <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption">
-            <template #default="{ handleInput, handleBlur, handleFocus }">
-              <NInput
-                ref="inputRef"
-                v-model:value="prompt"
-                :disabled="!!authStore.session?.auth && !authStore.token"
-                type="textarea"
-                :placeholder="placeholder"
-                :autosize="{ minRows: isMobile ? 1 : 4, maxRows: isMobile ? 4 : 8 }"
-                @input="handleInput"
-                @focus="handleFocus"
-                @blur="handleBlur"
-                @keypress="handleEnter"
-                @paste="handlePaste"
-              />
-            </template>
-          </NAutoComplete>
-          <NButton type="primary" :disabled="buttonDisabled" @click="handleSubmit">
-            <template #icon>
-              <span class="dark:text-black">
-                <SvgIcon icon="ri:send-plane-fill" />
-              </span>
-            </template>
-          </NButton>
-        </div>
-        <div v-if="attachedImageUrls.length > 0" class="mt-2 flex flex-wrap gap-2">
-          <div
-            v-for="(u, index) in attachedImageUrls"
-            :key="u"
-            class="relative w-16 h-16"
-          >
-            <img :src="u" class="w-16 h-16 object-cover rounded border" />
-            <button
-              v-if="!isMobile"
-              type="button"
-              class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
-              @click="removeAttachedImage(index)"
+      <div class="w-full m-auto" :style="!isMobile ? { maxWidth: '860px' } : {}">
+        <div class="chat-input-card">
+          <div class="chat-toolbar">
+            <div class="chat-toolbar-left">
+              <HoverButton v-if="!isMobile" @click="handleToggleUsingContext">
+                <span class="text-lg" :class="{ 'toolbar-icon-active': usingContext, 'toolbar-icon': !usingContext && !usingDraw, 'toolbar-icon-disabled': usingDraw }">
+                  <SvgIcon icon="ri:chat-history-line" />
+                </span>
+              </HoverButton>
+              <HoverButton v-if="!isMobile" @click="handleToggleUsingThinking">
+                <span class="text-lg" :class="{ 'toolbar-icon-active': usingThinking, 'toolbar-icon': !usingThinking }">
+                  <SvgIcon icon="ri:lightbulb-line" />
+                </span>
+              </HoverButton>
+              <HoverButton v-if="!isMobile" @click="handleToggleUsingDraw">
+                <span class="text-lg" :class="{ 'toolbar-icon-active': usingDraw, 'toolbar-icon': !usingDraw }">
+                  <SvgIcon icon="ri:image-line" />
+                </span>
+              </HoverButton>
+              <HoverButton v-if="!isMobile" @click="triggerAttach">
+                <span class="toolbar-icon">
+                  <SvgIcon icon="ri:attachment-2" />
+                </span>
+              </HoverButton>
+              <HoverButton v-if="!isMobile && showEditButton" @click="isEditMode = !isEditMode">
+                <span class="text-lg" :class="{ 'toolbar-icon-active': isEditMode, 'toolbar-icon': !isEditMode }">
+                  <SvgIcon icon="ri:scissors-cut-line" />
+                </span>
+              </HoverButton>
+              <NDropdown
+                v-if="!isMobile"
+                trigger="hover"
+                placement="top-start"
+                :options="moreMenuOptions"
+                @select="handleMoreSelect"
+              >
+                <HoverButton>
+                  <span class="toolbar-icon">
+                    <SvgIcon icon="ri:more-2-fill" />
+                  </span>
+                </HoverButton>
+              </NDropdown>
+
+              <!-- Mobile buttons -->
+              <HoverButton v-if="isMobile" @click="handleClear">
+                <span class="toolbar-icon">
+                  <SvgIcon icon="ri:delete-bin-line" />
+                </span>
+              </HoverButton>
+              <HoverButton v-if="isMobile" @click="handleToggleUsingDraw">
+                <span class="text-lg" :class="{ 'toolbar-icon-active': usingDraw, 'toolbar-icon': !usingDraw }">
+                  <SvgIcon icon="ri:image-line" />
+                </span>
+              </HoverButton>
+              <HoverButton v-if="isMobile" @click="triggerAttach">
+                <span class="toolbar-icon">
+                  <SvgIcon icon="ri:attachment-2" />
+                </span>
+              </HoverButton>
+            </div>
+
+            <NSelect
+              class="model-select"
+              :value="currentChatModel"
+              :options="authStore.session?.chatModels"
+              :disabled="!!authStore.session?.auth && !authStore.token"
+              @update-value="(val) => handleSyncChatModel(val)"
+            />
+          </div>
+
+          <div v-if="attachedImageUrls.length > 0" class="chat-attachments">
+            <div
+              v-for="(u, index) in attachedImageUrls"
+              :key="u"
+              class="chat-attachment-item"
             >
-              <span class="text-white text-lg">
-                <SvgIcon icon="ri:delete-bin-line" />
-              </span>
-            </button>
-            <button
-              v-else
-              type="button"
-              class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center"
-              @click="removeAttachedImage(index)"
-            >
-              <span class="text-white text-xs">
-                <SvgIcon icon="ri:close-fill" />
-              </span>
+              <img :src="u" class="chat-attachment-img" />
+              <button
+                v-if="!isMobile"
+                type="button"
+                class="chat-attachment-remove"
+                @click="removeAttachedImage(index)"
+              >
+                <SvgIcon icon="ri:delete-bin-line" class="text-white text-sm" />
+              </button>
+              <button
+                v-else
+                type="button"
+                class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center"
+                @click="removeAttachedImage(index)"
+              >
+                <SvgIcon icon="ri:close-fill" class="text-white text-xs" />
+              </button>
+            </div>
+          </div>
+
+          <div class="chat-input-row">
+            <NAutoComplete v-model:value="prompt" :options="searchOptions" :render-label="renderOption" class="flex-1">
+              <template #default="{ handleInput, handleBlur, handleFocus }">
+                <NInput
+                  ref="inputRef"
+                  v-model:value="prompt"
+                  :disabled="!!authStore.session?.auth && !authStore.token"
+                  type="textarea"
+                  :placeholder="placeholder"
+                  :autosize="{ minRows: isMobile ? 1 : 2, maxRows: isMobile ? 4 : 8 }"
+                  @input="handleInput"
+                  @focus="handleFocus"
+                  @blur="handleBlur"
+                  @keypress="handleEnter"
+                  @paste="handlePaste"
+                />
+              </template>
+            </NAutoComplete>
+            <button class="send-btn" :disabled="buttonDisabled" @click="handleSubmit">
+              <SvgIcon icon="ri:send-plane-fill" />
             </button>
           </div>
         </div>
-      </NSpace>
-    </div>
-  </footer>
-  <input ref="fileInputRef" type="file" style="position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; z-index: -1;" accept="image/*" multiple @change="onFilesSelected">
-  <Prompt v-if="showPrompt" v-model:roomId="uuid" v-model:visible="showPrompt" />
-</div>
+      </div>
+    </footer>
+    <input ref="fileInputRef" type="file" style="position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; z-index: -1;" accept="image/*" multiple @change="onFilesSelected">
+    <Prompt v-if="showPrompt" v-model:roomId="uuid" v-model:visible="showPrompt" />
+  </div>
 </template>
+
+<style scoped>
+/* Empty state hero */
+.empty-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 18vh;
+  text-align: center;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.empty-hero-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--surface-bubble-ai);
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.empty-hero-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.empty-hero-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 280px;
+}
+
+/* Stop button */
+.stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: var(--surface-chat);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.stop-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--text-muted);
+}
+
+/* Chat input card */
+.chat-input-card {
+  background: var(--surface-input);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-card);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.chat-input-card:focus-within {
+  border-color: var(--text-muted);
+  box-shadow: var(--shadow-md);
+}
+
+/* Toolbar */
+.chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.chat-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.toolbar-icon {
+  font-size: 17px;
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.toolbar-icon-active {
+  color: var(--brand-primary);
+}
+
+.toolbar-icon-disabled {
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
+.model-select {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+/* Input row */
+.chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat-input-row :deep(.n-input) {
+  background: transparent;
+}
+
+.chat-input-row :deep(.n-input .n-input__border),
+.chat-input-row :deep(.n-input .n-input__state-border) {
+  display: none !important;
+}
+
+/* Send button */
+.send-btn {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--brand-gradient);
+  color: #fff;
+  font-size: 17px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.send-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: scale(1.04);
+}
+
+.send-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.send-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Attachments */
+.chat-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-attachment-item {
+  position: relative;
+  width: 60px;
+  height: 60px;
+}
+
+.chat-attachment-img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+}
+
+.chat-attachment-remove {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  border: none;
+  cursor: pointer;
+}
+
+.chat-attachment-remove:hover {
+  opacity: 1;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+</style>
+

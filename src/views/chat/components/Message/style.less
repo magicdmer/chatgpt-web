@@ -6,6 +6,13 @@
 		white-space: pre-wrap;
 	}
 
+	hr {
+		height: 1px;
+		background-color: rgba(0, 0, 0, 0.08);
+		border: 0;
+		margin: 20px 0;
+	}
+
 	ol {
 		list-style-type: decimal;
 	}
@@ -21,7 +28,8 @@
 
 	.highlight pre,
 	pre {
-		background-color: #fff;
+		background-color: #ffffff;
+		border-radius: 12px;
 	}
 
 	pre,
@@ -37,27 +45,41 @@
 	.code-block {
 		&-wrapper {
 			position: relative;
-			padding-top: 24px;
+			padding-top: 40px;
+			border-radius: 12px;
+			overflow: hidden;
 		}
 
 		&-header {
 			position: absolute;
-			top: 5px;
+			top: 0;
 			right: 0;
 			width: 100%;
-			padding: 0 1rem;
+			padding: 8px 14px;
 			display: flex;
-			justify-content: flex-end;
+			justify-content: space-between;
 			align-items: center;
-			color: #b3b3b3;
+
+			&__lang {
+				font-size: 12px;
+				color: #94a3b8;
+				font-weight: 500;
+				text-transform: uppercase;
+				letter-spacing: 0.5px;
+			}
 
 			&__copy {
 				cursor: pointer;
-				margin-left: 0.5rem;
+				font-size: 12px;
+				color: #94a3b8;
 				user-select: none;
+				padding: 2px 8px;
+				border-radius: 6px;
+				transition: all 150ms ease;
 
 				&:hover {
-					color: #65a665;
+					color: #6366f1;
+					background: rgba(99, 102, 241, 0.08);
 				}
 			}
 		}
@@ -67,7 +89,7 @@
 		max-width: 100%;
 		height: auto;
 		max-height: 300px;
-		border-radius: 6px;
+		border-radius: 10px;
 		display: inline-block;
 	}
 
@@ -107,6 +129,6 @@ html.dark {
 
 	.highlight pre,
 	pre {
-		background-color: #282c34;
+		background-color: #1e1e2e;
 	}
 }

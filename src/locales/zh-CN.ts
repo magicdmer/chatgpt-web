@@ -49,6 +49,7 @@ export default {
     copyCode: '复制代码',
     clearChat: '清空会话',
     clearChatConfirm: '是否清空会话?',
+    roomPrompt: '提示词设置',
     exportImage: '保存会话到图片',
     exportImageConfirm: '是否将会话保存为图片?',
     exportSuccess: '保存成功',

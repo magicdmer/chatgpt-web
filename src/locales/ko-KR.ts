@@ -45,6 +45,7 @@ export default {
     copyCode: '코드 복사',
     clearChat: '채팅을 지우다',
     clearChatConfirm: '정말 이 채팅을 지우시겠습니까?',
+    roomPrompt: '프롬프트 설정',
     exportImage: '이미지 내보내기',
     exportImageConfirm: '이 채팅을 png로 내보내시겠습니까?',
     exportSuccess: '내보내기 성공',

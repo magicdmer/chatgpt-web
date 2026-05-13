@@ -47,6 +47,7 @@ export default {
     copyCode: '複製代碼',
     clearChat: '清除對話',
     clearChatConfirm: '是否清空對話?',
+    roomPrompt: '提示詞設定',
     exportImage: '儲存對話為圖片',
     exportImageConfirm: '是否將對話儲存為圖片?',
     exportSuccess: '儲存成功',

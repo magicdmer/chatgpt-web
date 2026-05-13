@@ -127,20 +127,20 @@ async function handlePreviousResponse(next: number) {
 <template>
   <div
     ref="messageRef"
-    class="flex w-full mb-6 overflow-hidden"
+    class="message-row"
     :class="[{ 'flex-row-reverse': inversion }]"
   >
     <div
-      class="flex items-center justify-center flex-shrink-0 h-8 overflow-hidden rounded-full basis-8"
+      class="message-avatar"
       :class="[inversion ? 'ml-2' : 'mr-2']"
     >
       <AvatarComponent :image="inversion" />
     </div>
-    <div class="overflow-hidden text-sm " :class="[inversion ? 'items-end' : 'items-start']">
-      <p v-if="inversion" class="text-xs text-[#b4bbc4]" :class="[inversion ? 'text-right' : 'text-left']">
+    <div class="overflow-hidden text-sm" :class="[inversion ? 'items-end' : 'items-start']">
+      <p v-if="inversion" class="message-meta" :class="[inversion ? 'text-right' : 'text-left']">
         {{ dateTime ? dayjs(dateTime).format('YYYY/MM/DD HH:mm:ss') : '' }}
       </p>
-      <p v-else class="text-xs text-[#b4bbc4]" :class="[inversion ? 'text-right' : 'text-left']">
+      <p v-else class="message-meta" :class="[inversion ? 'text-right' : 'text-left']">
         <NSpace>
           {{ dateTime ? dayjs(dateTime).format('YYYY/MM/DD HH:mm:ss') : '' }}
           <NButtonGroup v-if="!inversion && responseCount && responseCount > 1">
@@ -152,7 +152,7 @@ async function handlePreviousResponse(next: number) {
             >
               <svg stroke="currentColor" fill="none" stroke-width="1.5" viewBox="-3 3 24 24" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg"><polyline points="15 18 9 12 15 6" /></svg>
             </NButton>
-            <span class="text-xs text-[#b4bbc4]"> {{ indexRef }} / {{ responseCount }}</span>
+            <span class="message-meta"> {{ indexRef }} / {{ responseCount }}</span>
             <NButton
               style="cursor: pointer;"
               size="tiny" quaternary
@@ -202,10 +202,10 @@ async function handlePreviousResponse(next: number) {
           :as-raw-text="asRawText"
           />
         </div>
-        <div class="flex flex-col">
+        <div class="message-actions">
           <button
             v-if="!inversion"
-            class="mb-2 transition text-neutral-300 hover:text-neutral-800 dark:hover:text-neutral-300"
+            class="message-action-btn"
             @click="handleRegenerate"
           >
             <SvgIcon icon="ri:restart-line" />
@@ -216,7 +216,7 @@ async function handlePreviousResponse(next: number) {
             :options="options"
             @select="handleSelect"
           >
-            <button class="transition text-neutral-300 hover:text-neutral-800 dark:hover:text-neutral-200">
+            <button class="message-action-btn">
               <SvgIcon icon="ri:more-2-fill" />
             </button>
           </NDropdown>
@@ -225,3 +225,64 @@ async function handlePreviousResponse(next: number) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.message-row {
+  display: flex;
+  width: 100%;
+  margin-bottom: 24px;
+  overflow: hidden;
+  animation: fadeInUp 0.35s ease-out both;
+}
+
+.message-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+}
+
+.message-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.message-actions {
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.message-row:hover .message-actions {
+  opacity: 1;
+}
+
+.message-action-btn {
+  padding: 4px;
+  margin-bottom: 2px;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.message-action-btn:hover {
+  color: var(--brand-primary);
+  background: var(--surface-hover);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>

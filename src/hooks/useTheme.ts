@@ -20,12 +20,50 @@ export function useTheme() {
   })
 
   const themeOverrides = computed<GlobalThemeOverrides>(() => {
+    const common = {
+      primaryColor: '#4f46e5',
+      primaryColorHover: '#6366f1',
+      primaryColorPressed: '#4338ca',
+      primaryColorSuppl: '#6366f1',
+      borderRadius: '8px',
+      borderRadiusSmall: '6px',
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    }
+
     if (isDark.value) {
       return {
-        common: {},
+        common: {
+          ...common,
+          bodyColor: '#1a1a1a',
+          cardColor: '#1e1e1e',
+          modalColor: '#1e1e1e',
+          popoverColor: '#262626',
+          tableColor: '#1e1e1e',
+          inputColor: '#262626',
+        },
+        Button: {
+          borderRadiusMedium: '8px',
+          borderRadiusSmall: '6px',
+          borderRadiusLarge: '10px',
+        },
+        Input: {
+          borderRadius: '8px',
+        },
       }
     }
-    return {}
+    return {
+      common: {
+        ...common,
+      },
+      Button: {
+        borderRadiusMedium: '8px',
+        borderRadiusSmall: '6px',
+        borderRadiusLarge: '10px',
+      },
+      Input: {
+        borderRadius: '8px',
+      },
+    }
   })
 
   watch(

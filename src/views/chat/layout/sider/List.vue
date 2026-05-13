@@ -79,7 +79,7 @@ function isActive(uuid: number) {
 <template>
   <NScrollbar class="px-4">
     <NSpin :show="loadingRoom">
-      <div class="flex flex-col gap-2 text-sm">
+      <div class="flex flex-col gap-1.5 text-sm">
         <template v-if="!dataSources.length">
           <div class="flex flex-col items-center mt-4 text-center text-neutral-300">
             <SvgIcon icon="ri:inbox-line" class="mb-2 text-3xl" />
@@ -89,11 +89,11 @@ function isActive(uuid: number) {
         <template v-else>
           <div v-for="(item, index) of dataSources" :key="index">
             <a
-              class="relative flex items-center gap-3 px-3 py-3 break-all border rounded-md cursor-pointer hover:bg-neutral-100 group dark:border-neutral-800 dark:hover:bg-[#24272e]"
-              :class="isActive(item.uuid) && ['border-[#4b9e5f]', 'bg-neutral-100', 'text-[#4b9e5f]', 'dark:bg-[#24272e]', 'dark:border-[#4b9e5f]', 'pr-14']"
+              class="chat-history-item"
+              :class="{ 'is-active': isActive(item.uuid) }"
               @click="handleSelect(item)"
             >
-              <span>
+              <span class="chat-history-icon">
                 <SvgIcon v-if="item.loading" icon="ri:loader-4-line" class="animate-spin" />
                 <SvgIcon v-else icon="ri:message-3-line" />
               </span>
@@ -105,19 +105,19 @@ function isActive(uuid: number) {
                 />
                 <span v-else>{{ item.title }}</span>
               </div>
-              <div v-if="isActive(item.uuid)" class="absolute z-10 flex visible right-1">
+              <div v-if="isActive(item.uuid)" class="absolute z-10 flex visible right-1 gap-0.5">
                 <template v-if="item.isEdit">
-                  <button class="p-1" @click="handleEdit(item, false, $event)">
+                  <button class="chat-history-action" @click="handleEdit(item, false, $event)">
                     <SvgIcon icon="ri:save-line" />
                   </button>
                 </template>
                 <template v-else>
-                  <button class="p-1">
+                  <button class="chat-history-action">
                     <SvgIcon icon="ri:edit-line" @click="handleEdit(item, true, $event)" />
                   </button>
                   <NPopconfirm placement="bottom" @positive-click="handleDeleteDebounce(index, $event)">
                     <template #trigger>
-                      <button class="p-1">
+                      <button class="chat-history-action">
                         <SvgIcon icon="ri:delete-bin-line" />
                       </button>
                     </template>
@@ -132,3 +132,50 @@ function isActive(uuid: number) {
     </NSpin>
   </NScrollbar>
 </template>
+
+<style scoped>
+.chat-history-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.chat-history-item:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.chat-history-item.is-active {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-color: transparent;
+  padding-right: 56px;
+  font-weight: 500;
+}
+
+.chat-history-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+}
+
+.chat-history-action {
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+}
+
+.chat-history-action:hover {
+  color: var(--text-primary);
+  background: var(--surface-active);
+}
+</style>

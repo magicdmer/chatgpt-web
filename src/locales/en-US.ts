@@ -49,6 +49,7 @@ export default {
     copyCode: 'Copy Code',
     clearChat: 'Clear Chat',
     clearChatConfirm: 'Are you sure to clear this chat?',
+    roomPrompt: 'Prompt Settings',
     exportImage: 'Export Image',
     exportImageConfirm: 'Are you sure to export this chat to png?',
     exportSuccess: 'Export Success',

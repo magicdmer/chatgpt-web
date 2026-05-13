@@ -199,64 +199,91 @@ async function handleResetPassword() {
 </script>
 
 <template>
-  <NModal v-model:show="show" style="width: 90%; max-width: 440px">
-    <div class="p-10 bg-white rounded dark:bg-slate-800">
-      <div class="space-y-4">
-        <header class="space-y-2">
-          <h2 class="text-2xl font-bold text-center text-slate-800 dark:text-neutral-200">
-            {{ $t('common.notLoggedIn') }}
-          </h2>
-        </header>
+  <NModal v-model:show="show" style="width: 90%; max-width: 400px">
+    <div class="permission-card">
+      <div class="permission-body">
+        <div class="space-y-5">
+          <header class="space-y-2 mb-2">
+            <h2 class="permission-title">
+              {{ $t('common.notLoggedIn') }}
+            </h2>
+          </header>
 
-        <!-- Add Tabs -->
-        <NTabs v-model:value="activeTab" type="line">
-          <NTabPane name="login" :tab="$t('common.login')">
-            <NInput v-model:value="username" type="text" :placeholder="$t('common.email')" class="mb-2" />
-            <NInput v-model:value="password" type="password" :placeholder="$t('common.password')" class="mb-2" @keypress="handlePress" />
+          <!-- Add Tabs -->
+          <NTabs v-model:value="activeTab" type="line" justify-content="space-evenly">
+            <NTabPane name="login" :tab="$t('common.login')">
+              <div class="pt-4 space-y-4">
+                <NInput v-model:value="username" type="text" :placeholder="$t('common.email')" size="large" />
+                <NInput v-model:value="password" type="password" :placeholder="$t('common.password')" size="large" @keypress="handlePress" />
+                <NButton block type="primary" size="large" :disabled="disabled" :loading="loading" @click="handleLogin">
+                  {{ $t('common.login') }}
+                </NButton>
+              </div>
+            </NTabPane>
 
-            <NButton block type="primary" :disabled="disabled" :loading="loading" @click="handleLogin">
-              {{ $t('common.login') }}
-            </NButton>
-          </NTabPane>
+            <NTabPane v-if="authStore.session && authStore.session.allowRegister" name="register" :tab="$t('common.register')">
+              <div class="pt-4 space-y-4">
+                <NInput v-model:value="username" type="text" :placeholder="$t('common.email')" size="large" />
+                <NInput v-model:value="password" type="password" :placeholder="$t('common.password')" size="large" @input="handlePasswordInput" />
+                <NInput
+                  v-if="showConfirmPassword"
+                  v-model:value="confirmPassword"
+                  type="password"
+                  :placeholder="$t('common.passwordConfirm')"
+                  size="large"
+                  :status="confirmPasswordStatus"
+                />
+                <NButton block type="primary" size="large" :disabled="disabled || password !== confirmPassword" :loading="loading" @click="handleRegister">
+                  {{ $t('common.register') }}
+                </NButton>
+              </div>
+            </NTabPane>
 
-          <NTabPane v-if="authStore.session && authStore.session.allowRegister" name="register" :tab="$t('common.register')">
-            <NInput v-model:value="username" type="text" :placeholder="$t('common.email')" class="mb-2" />
-            <NInput v-model:value="password" type="password" :placeholder="$t('common.password')" class="mb-2" @input="handlePasswordInput" />
-            <NInput
-              v-if="showConfirmPassword"
-              v-model:value="confirmPassword"
-              type="password"
-              :placeholder="$t('common.passwordConfirm')"
-              class="mb-4"
-              :status="confirmPasswordStatus"
-            />
-
-            <NButton block type="primary" :disabled="disabled || password !== confirmPassword" :loading="loading" @click="handleRegister">
-              {{ $t('common.register') }}
-            </NButton>
-          </NTabPane>
-
-          <NTabPane name="resetPassword" :tab="$t('common.resetPassword')">
-            <NInput v-model:value="username" :disabled="sign !== undefined" type="text" :placeholder="$t('common.email')" class="mb-2" />
-            <NInput v-if="!!sign" v-model:value="password" type="password" :placeholder="$t('common.password')" class="mb-2" @input="handlePasswordInput" />
-            <NInput
-              v-if="showConfirmPassword"
-              v-model:value="confirmPassword"
-              type="password"
-              :placeholder="$t('common.passwordConfirm')"
-              class="mb-4"
-              :status="confirmPasswordStatus"
-            />
-            <NButton v-if="!sign" block type="primary" :disabled="username.length <= 0" :loading="loading" @click="handleSendResetMail">
-              {{ $t('common.resetPasswordMail') }}
-            </NButton>
-            <NButton v-else block type="primary" :disabled="disabled || password !== confirmPassword" :loading="loading" @click="handleResetPassword">
-              {{ $t('common.resetPassword') }}
-            </NButton>
-          </NTabPane>
-        </NTabs>
-        <!-- End Tabs -->
+            <NTabPane name="resetPassword" :tab="$t('common.resetPassword')">
+              <div class="pt-4 space-y-4">
+                <NInput v-model:value="username" :disabled="sign !== undefined" type="text" :placeholder="$t('common.email')" size="large" />
+                <NInput v-if="!!sign" v-model:value="password" type="password" :placeholder="$t('common.password')" size="large" @input="handlePasswordInput" />
+                <NInput
+                  v-if="showConfirmPassword"
+                  v-model:value="confirmPassword"
+                  type="password"
+                  :placeholder="$t('common.passwordConfirm')"
+                  size="large"
+                  :status="confirmPasswordStatus"
+                />
+                <NButton v-if="!sign" block type="primary" size="large" :disabled="username.length <= 0" :loading="loading" @click="handleSendResetMail">
+                  {{ $t('common.resetPasswordMail') }}
+                </NButton>
+                <NButton v-else block type="primary" size="large" :disabled="disabled || password !== confirmPassword" :loading="loading" @click="handleResetPassword">
+                  {{ $t('common.resetPassword') }}
+                </NButton>
+              </div>
+            </NTabPane>
+          </NTabs>
+          <!-- End Tabs -->
+        </div>
       </div>
     </div>
   </NModal>
 </template>
+
+<style scoped>
+.permission-card {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-lg);
+}
+
+.permission-body {
+  padding: 32px 32px;
+}
+
+.permission-title {
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-primary);
+}
+</style>

@@ -42,11 +42,8 @@ const wrapClass = computed(() => {
   return [
     'text-wrap',
     'min-w-[20px]',
-    'rounded-md',
     isMobile.value ? 'p-2' : 'px-3 py-2',
-    props.inversion ? 'bg-[#d2f9d1]' : 'bg-[#f4f6f8]',
-    props.inversion ? 'dark:bg-[#a1dc95]' : 'dark:bg-[#1e1e20]',
-    props.inversion ? 'message-request' : 'message-reply',
+    props.inversion ? 'message-bubble-user' : 'message-bubble-ai',
     { 'text-red-500': props.error },
   ]
 })
@@ -100,7 +97,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="text-black" :class="wrapClass">
+  <div :class="wrapClass">
     <div ref="textRef" class="leading-relaxed break-words">
       <div v-if="!inversion" class="flex items-end">
         <div v-if="!props.asRawText" class="w-full markdown-body" v-html="text" />
@@ -118,3 +115,26 @@ onUnmounted(() => {
 <style lang="less">
 @import url(./style.less);
 </style>
+
+<style scoped>
+.message-bubble-user {
+  border-radius: var(--radius-md);
+  background: var(--surface-bubble-user);
+  color: var(--text-primary);
+}
+
+.message-bubble-user :deep(.markdown-body) {
+  color: var(--text-primary) !important;
+}
+
+.message-bubble-user :deep(.markdown-body) a {
+  color: var(--brand-primary) !important;
+}
+
+.message-bubble-ai {
+  border-radius: var(--radius-md);
+  background: var(--surface-bubble-ai);
+  color: var(--text-primary);
+}
+</style>
+
