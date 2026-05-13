@@ -22,6 +22,7 @@ const Prompt = defineAsyncComponent(() => import('@/components/common/Setting/Pr
 
 let controller = new AbortController()
 let lastChatInfo: any = {}
+let currentChatUuid = 0
 
 const openLongReply = import.meta.env.VITE_GLOB_OPEN_LONG_REPLY === 'true'
 
@@ -163,13 +164,14 @@ async function onConversation() {
   controller = new AbortController()
 
   const chatUuid = Date.now()
+  currentChatUuid = chatUuid
   const attachmentsMarkdown = imagesToSend.length > 0 ? imagesToSend.map(u => `![image](${toAbsolute(u)})`).join('\n') : ''
   const userText = attachmentsMarkdown ? `${message}\n\n${attachmentsMarkdown}` : message
   addChat(
     +uuid,
     {
       uuid: chatUuid,
-      dateTime: new Date().toLocaleString(),
+      dateTime: Date.now(),
       text: userText,
       inversion: true,
       error: false,
@@ -232,7 +234,7 @@ async function onConversation() {
     +uuid,
     {
       uuid: chatUuid,
-      dateTime: new Date().toLocaleString(),
+      dateTime: Date.now(),
       text: '',
       loading: true,
       inversion: false,
@@ -271,7 +273,7 @@ async function onConversation() {
           +uuid,
           dataSources.value.length - 1,
           {
-            dateTime: new Date().toLocaleString(),
+            dateTime: Date.now(),
             text,
             inversion: false,
             error: false,
@@ -319,7 +321,7 @@ async function onConversation() {
               +uuid,
               dataSources.value.length - 1,
               {
-                dateTime: new Date().toLocaleString(),
+                dateTime: Date.now(),
                 text: lastText + (data.text ?? ''),
                 inversion: false,
                 error: false,
@@ -385,7 +387,7 @@ async function onConversation() {
       +uuid,
       dataSources.value.length - 1,
       {
-        dateTime: new Date().toLocaleString(),
+        dateTime: Date.now(),
         text: errorMessage,
         inversion: false,
         error: true,
@@ -425,7 +427,7 @@ async function onRegenerate(index: number) {
     +uuid,
     index,
     {
-      dateTime: new Date().toLocaleString(),
+      dateTime: Date.now(),
       text: '',
       inversion: false,
       responseCount,
@@ -484,7 +486,7 @@ async function onRegenerate(index: number) {
               +uuid,
               index,
               {
-                dateTime: new Date().toLocaleString(),
+                dateTime: Date.now(),
                 text: lastText + (data.text ?? ''),
                 inversion: false,
                 responseCount,
@@ -532,7 +534,7 @@ async function onRegenerate(index: number) {
       +uuid,
       index,
       {
-        dateTime: new Date().toLocaleString(),
+        dateTime: Date.now(),
         text: errorMessage,
         inversion: false,
         responseCount,
@@ -664,7 +666,7 @@ async function handleStop() {
   if (loading.value) {
     controller.abort()
     loading.value = false
-    await fetchChatStopResponding(lastChatInfo.text, lastChatInfo.id, lastChatInfo.conversationId)
+    await fetchChatStopResponding(lastChatInfo.text, lastChatInfo.id, lastChatInfo.conversationId, currentChatUuid)
   }
 }
 

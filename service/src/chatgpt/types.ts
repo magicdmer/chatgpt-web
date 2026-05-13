@@ -31,6 +31,7 @@ export interface RequestOptions {
   extra_body?: Record<string, any>
   user: UserInfo
   messageId: string
+  chatUuid: number
   tryCount: number
   room: ChatRoom
   draw?: boolean

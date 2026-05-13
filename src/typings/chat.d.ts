@@ -3,7 +3,7 @@ declare namespace Chat {
 
   interface Chat {
     uuid?: number
-    dateTime: string
+    dateTime: number
     text: string
     inversion?: boolean
     responseCount?: number

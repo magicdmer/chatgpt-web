@@ -349,8 +349,7 @@ export async function getConfig(): Promise<Config | null> {
     row.socksAuth,
     row.httpsProxy,
     JSON.parse(row.siteConfig || '{}'),
-    JSON.parse(row.mailConfig || '{}'),
-    JSON.parse(row.auditConfig || '{}')
+    JSON.parse(row.mailConfig || '{}')
   )
 }
 
@@ -369,11 +368,10 @@ export async function updateConfig(config: Config): Promise<Config> {
 
       if (row) {
         // 如果存在记录，使用 UPDATE
-        sql = `UPDATE config SET 
-          timeoutMs = ?, apiKey = ?, apiBaseUrl = ?, 
-          apiDisableDebug = ?, socksProxy = ?, 
-          socksAuth = ?, httpsProxy = ?, siteConfig = ?, mailConfig = ?, 
-          auditConfig = ? 
+        sql = `UPDATE config SET
+          timeoutMs = ?, apiKey = ?, apiBaseUrl = ?,
+          apiDisableDebug = ?, socksProxy = ?,
+          socksAuth = ?, httpsProxy = ?, siteConfig = ?, mailConfig = ?
           WHERE id = 1`
         params = [
           config.timeoutMs,
@@ -384,16 +382,15 @@ export async function updateConfig(config: Config): Promise<Config> {
           config.socksAuth,
           config.httpsProxy,
           JSON.stringify(config.siteConfig),
-          JSON.stringify(config.mailConfig),
-          JSON.stringify(config.auditConfig)
+          JSON.stringify(config.mailConfig)
         ]
       } else {
         // 如果不存在记录，使用 INSERT
         sql = `INSERT INTO config (
-          timeoutMs, apiKey, apiBaseUrl, apiDisableDebug, 
-          socksProxy, socksAuth, httpsProxy, 
-          siteConfig, mailConfig, auditConfig
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          timeoutMs, apiKey, apiBaseUrl, apiDisableDebug,
+          socksProxy, socksAuth, httpsProxy,
+          siteConfig, mailConfig
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         params = [
           config.timeoutMs,
           config.apiKey,
@@ -403,8 +400,7 @@ export async function updateConfig(config: Config): Promise<Config> {
           config.socksAuth,
           config.httpsProxy,
           JSON.stringify(config.siteConfig),
-          JSON.stringify(config.mailConfig),
-          JSON.stringify(config.auditConfig)
+          JSON.stringify(config.mailConfig)
         ]
       }
 
@@ -611,18 +607,18 @@ export async function clearChat(roomId: number) {
 
 // 删除所有聊天室
 export async function deleteAllChatRooms(userId: string) {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      // 更新聊天室状态
-      db.run('UPDATE chat_room SET status = ? WHERE userId = ? AND status = ?', 
-        [Status.Deleted, userId, Status.Normal])
-      
-      // 更新相关聊天记录状态
-      db.run('UPDATE chat SET status = ? WHERE roomId IN (SELECT roomId FROM chat_room WHERE userId = ?) AND status = ?',
-        [Status.Deleted, userId, Status.Normal])
-      
-      resolve(null)
-    })
+  return new Promise<void>((resolve, reject) => {
+    db.run('UPDATE chat_room SET status = ? WHERE userId = ? AND status = ?',
+      [Status.Deleted, userId, Status.Normal], (err) => {
+        if (err) reject(err)
+        else {
+          db.run('UPDATE chat SET status = ? WHERE roomId IN (SELECT roomId FROM chat_room WHERE userId = ?) AND status = ?',
+            [Status.Deleted, userId, Status.Normal], (err2) => {
+              if (err2) reject(err2)
+              else resolve()
+            })
+        }
+      })
   })
 }
 
@@ -703,6 +699,7 @@ export async function getChats(roomId: number, lastId?: number): Promise<ChatInf
   const chats = rows.map(row => {
     const chatInfo = new ChatInfo(row.roomId, row.uuid, row.prompt, JSON.parse(row.options))
     chatInfo.id = row.id
+    chatInfo.dateTime = row.dateTime
     chatInfo.response = row.response
     chatInfo.status = row.status
     chatInfo.previousResponse = row.previousResponse ? JSON.parse(row.previousResponse) : undefined
@@ -917,6 +914,7 @@ export async function getChat(roomId: number, uuid: number): Promise<ChatInfo | 
   
   const chatInfo = new ChatInfo(row.roomId, row.uuid, row.prompt, JSON.parse(row.options))
   chatInfo.id = row.id
+  chatInfo.dateTime = row.dateTime
   chatInfo.images = row.images ? JSON.parse(row.images) : []
   chatInfo.response = row.response
   chatInfo.status = row.status

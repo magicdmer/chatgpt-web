@@ -8,7 +8,8 @@ export class ConfigState {
   balance?: number
   siteConfig?: SiteConfig
   mailConfig?: MailConfig
-  auditConfig?: AuditConfig
+
+
 }
 
 export class UserConfig {
@@ -32,29 +33,6 @@ export class MailConfig {
   smtpUserName?: string
   smtpPassword?: string
 }
-export type TextAuditServiceProvider = 'baidu' //  | 'ali'
-
-export interface TextAuditServiceOptions {
-  apiKey: string
-  apiSecret: string
-  label?: string
-}
-export enum TextAudioType {
-  None = 0,
-  Request = 1 << 0, // 二进制 01
-  Response = 1 << 1, // 二进制 10
-  All = Request | Response, // 二进制 11
-}
-
-export class AuditConfig {
-  enabled?: boolean
-  provider?: TextAuditServiceProvider
-  options?: TextAuditServiceOptions
-  textType?: TextAudioType
-  customizeEnabled?: boolean
-  sensitiveWords?: string
-}
-
 export enum Status {
   Normal = 0,
   Deleted = 1,

@@ -1,6 +1,6 @@
 import type { AxiosProgressEvent, GenericAbortSignal } from 'axios'
 import { get, post } from '@/utils/request'
-import type { AuditConfig, ConfigState, KeyConfig, MailConfig, SiteConfig, Status, UserInfo } from '@/components/common/Setting/model'
+import type { ConfigState, KeyConfig, MailConfig, SiteConfig, Status, UserInfo } from '@/components/common/Setting/model'
 import { useSettingStore } from '@/store'
 
 export function fetchChatConfig<T = any>() {
@@ -50,10 +50,10 @@ export function fetchChatAPIProcess<T = any>(
   })
 }
 
-export function fetchChatStopResponding<T = any>(text: string, messageId: string, conversationId: string) {
+export function fetchChatStopResponding<T = any>(text: string, messageId: string, conversationId: string, chatUuid?: number) {
   return post<T>({
     url: '/chat-abort',
-    data: { text, messageId, conversationId },
+    data: { text, messageId, conversationId, chatUuid },
   })
 }
 
@@ -278,20 +278,6 @@ export function fetchTestMail<T = any>(mail: MailConfig) {
   return post<T>({
     url: '/mail-test',
     data: mail,
-  })
-}
-
-export function fetchUpdateAudit<T = any>(audit: AuditConfig) {
-  return post<T>({
-    url: '/setting-audit',
-    data: audit,
-  })
-}
-
-export function fetchTestAudit<T = any>(text: string, audit: AuditConfig) {
-  return post<T>({
-    url: '/audit-test',
-    data: { audit, text },
   })
 }
 

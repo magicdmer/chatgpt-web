@@ -6,10 +6,8 @@ import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
 import axios from 'axios'
 import crypto from 'crypto'
-import type { AuditConfig, KeyConfig, UserInfo } from '../storage/model'
+import type { KeyConfig, UserInfo } from '../storage/model'
 import { Status } from '../storage/model'
-import type { TextAuditService } from '../utils/textAudit'
-import { textAuditServices } from '../utils/textAudit'
 import { getCacheApiKeys, getCacheConfig, getOriginConfig } from '../storage/config'
 import { sendResponse } from '../utils'
 import { hasAnyRole, isNotEmptyString } from '../utils/is'
@@ -30,7 +28,6 @@ const ErrorCodeMessage: Record<string, string> = {
   500: '[OpenAI] 服务器繁忙，请稍后再试 | Internal Server Error',
 }
 
-let auditService: TextAuditService
 const _lockedKeys: { key: string; lockedTime: number }[] = []
 
 export async function createClient(key: KeyConfig) {
@@ -126,7 +123,7 @@ async function mg_draw(url: string, key: string, prompt: string, model: string):
   }
 }
 
-const processThreads: { userId: string; abort: AbortController; messageId: string }[] = []
+const processThreads: { userId: string; abort: AbortController; messageId: string; chatUuid: number }[] = []
 
 async function chatReplyProcess(options: RequestOptions) {
   const chatModel = options.room.chatModel ?? 'gpt-3.5-turbo'
@@ -207,7 +204,7 @@ async function chatReplyProcess(options: RequestOptions) {
 
     const client = await createClient(key)
     const abort = new AbortController()
-    processThreads.push({ userId, abort, messageId })
+    processThreads.push({ userId, abort, messageId, chatUuid: options.chatUuid })
 
     const conversationId = lastContext?.conversationId ?? crypto.randomUUID()
     // Accumulate raw streamed text, and derive final text and reasoning content
@@ -360,42 +357,20 @@ async function chatReplyProcess(options: RequestOptions) {
     return sendResponse({ type: 'Fail', message: error.message ?? error.error?.message ?? 'Please check the back-end console' })
   }
   finally {
-    const index = processThreads.findIndex(d => d.userId === userId)
+    const index = processThreads.findIndex(d => d.messageId === messageId)
     if (index > -1)
       processThreads.splice(index, 1)
   }
 }
 
-export function abortChatProcess(userId: string) {
-  const index = processThreads.findIndex(d => d.userId === userId)
+export function abortChatProcess(chatUuid: number) {
+  const index = processThreads.findIndex(d => d.chatUuid === chatUuid)
   if (index <= -1)
     return
   const messageId = processThreads[index].messageId
   processThreads[index].abort.abort()
   processThreads.splice(index, 1)
   return messageId
-}
-
-export function initAuditService(audit: AuditConfig) {
-  if (!audit || !audit.options || !audit.options.apiKey || !audit.options.apiSecret)
-    return
-  const Service = textAuditServices[audit.provider]
-  auditService = new Service(audit.options)
-}
-
-async function containsSensitiveWords(audit: AuditConfig, text: string): Promise<boolean> {
-  if (audit.customizeEnabled && isNotEmptyString(audit.sensitiveWords)) {
-    const textLower = text.toLowerCase()
-    const notSafe = audit.sensitiveWords.split('\n').filter(d => textLower.includes(d.trim().toLowerCase())).length > 0
-    if (notSafe)
-      return true
-  }
-  if (audit.enabled) {
-    if (!auditService)
-      initAuditService(audit)
-    return await auditService.containsSensitiveWords(text)
-  }
-  return false
 }
 
 async function chatConfig() {
@@ -496,4 +471,4 @@ async function getRandomApiKey(user: UserInfo, chatModel: string): Promise<KeyCo
 
 export type { ChatContext, ChatMessage }
 
-export { chatReplyProcess, chatConfig, containsSensitiveWords }
+export { chatReplyProcess, chatConfig }

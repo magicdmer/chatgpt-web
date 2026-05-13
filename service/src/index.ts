@@ -4,11 +4,11 @@ import * as dotenv from 'dotenv'
 import { textTokens } from 'gpt-token'
 import type { RequestProps } from './types'
 import type { ChatMessage } from './chatgpt'
-import { abortChatProcess, chatConfig, chatReplyProcess, containsSensitiveWords, initAuditService, listModelsForKey, createClient } from './chatgpt'
+import { abortChatProcess, chatConfig, chatReplyProcess, listModelsForKey, createClient } from './chatgpt'
 import { auth, getUserId } from './middleware/auth'
 import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig } from './storage/config'
 import { Status, UsageResponse, UserRole, chatModelOptions, KeyConfig } from './storage/model'
-import type { AuditConfig, ChatInfo, ChatOptions, Config, MailConfig, SiteConfig, UserInfo, UserOption } from './storage/model'
+import type { ChatInfo, ChatOptions, Config, MailConfig, SiteConfig, UserInfo, UserOption } from './storage/model'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
@@ -90,10 +90,25 @@ try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }) } catch {}
 app.use('/uploads', express.static(UPLOAD_DIR))
 app.use('/api/uploads', express.static(UPLOAD_DIR))
 
+const ALLOWED_MIME: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+}
+
+function fileFilter(_req: any, file: any, cb: any) {
+  if (ALLOWED_MIME[file.mimetype]) {
+    cb(null, true)
+  } else {
+    cb(new Error('仅支持 png/jpeg/webp/gif 图片 | Only png/jpeg/webp/gif images are allowed'), false)
+  }
+}
+
 const storage: multer.StorageEngine = {
   _handleFile(_req: any, file: any, cb: any) {
     (async () => {
-      const ext = path.extname(file.originalname) || ''
+      const ext = ALLOWED_MIME[file.mimetype] || '.png'
       const tmpName = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`
       const tmpPath = path.join(UPLOAD_DIR, tmpName)
       const out = fs.createWriteStream(tmpPath)
@@ -120,7 +135,7 @@ const storage: multer.StorageEngine = {
     fs.unlink(p, () => cb(null))
   },
 }
-const upload = multer({ storage, limits: { fileSize: Number(process.env.UPLOAD_MAX_SIZE_MB || 10) * 1024 * 1024 } })
+const upload = multer({ storage, fileFilter, limits: { fileSize: Number(process.env.UPLOAD_MAX_SIZE_MB || 10) * 1024 * 1024 } })
 
 function buildAbsoluteUrl(u: string): string {
   try {
@@ -464,7 +479,7 @@ router.get('/chat-history', auth, async (req, res) => {
       if (c.status !== Status.InversionDeleted) {
         result.push({
           uuid: c.uuid,
-          dateTime: new Date(c.dateTime).toLocaleString(),
+          dateTime: c.dateTime,
           text: c.prompt,
           inversion: true,
           error: false,
@@ -486,7 +501,7 @@ router.get('/chat-history', auth, async (req, res) => {
           : undefined
         result.push({
           uuid: c.uuid,
-          dateTime: new Date(c.dateTime).toLocaleString(),
+          dateTime: c.dateTime,
           text: c.response,
           inversion: false,
           error: false,
@@ -551,7 +566,7 @@ router.get('/chat-response-history', auth, async (req, res) => {
       message: null,
       data: {
         uuid: chat.uuid,
-        dateTime: new Date(chat.dateTime).toLocaleString(),
+        dateTime: chat.dateTime,
         text: response.response,
         inversion: false,
         error: false,
@@ -642,15 +657,8 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
   let result
   let message: ChatInfo
   try {
-    const config = await getCacheConfig()
     const userId = req.headers.userId.toString()
     const user = await getUserById(userId)
-    if (config.auditConfig.enabled || config.auditConfig.customizeEnabled) {
-      if (!user.roles.includes(UserRole.Admin) && await containsSensitiveWords(config.auditConfig, prompt)) {
-        res.send({ status: 'Fail', message: '含有敏感词 | Contains sensitive words', data: null })
-        return
-      }
-    }
 
     // 若携带图片，写入用户消息时附加 Markdown 以便历史可视
     let userTextForInsert = prompt
@@ -713,6 +721,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       extra_body,
       user,
       messageId: message.id.toString(),
+      chatUuid: uuid,
       tryCount: 0,
       room,
       draw,
@@ -800,8 +809,8 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
 router.post('/chat-abort', [auth, limiter], async (req, res) => {
   try {
     const userId = req.headers.userId.toString()
-    const { text, messageId, conversationId } = req.body as { text: string; messageId: string; conversationId: string }
-    const msgId = await abortChatProcess(userId)
+    const { text, messageId, conversationId, chatUuid } = req.body as { text: string; messageId: string; conversationId: string; chatUuid: number }
+    const msgId = await abortChatProcess(chatUuid || userId)
     await updateChat(msgId,
       text,
       messageId,
@@ -810,7 +819,7 @@ router.post('/chat-abort', [auth, limiter], async (req, res) => {
     res.send({ status: 'Success', message: 'OK', data: null })
   }
   catch (error) {
-    res.send({ status: 'Fail', message: '重置邮件已发送 | Reset email has been sent', data: null })
+    res.send({ status: 'Fail', message: '中断失败 | Abort failed', data: null })
   }
 })
 
@@ -1224,39 +1233,6 @@ router.post('/mail-test', rootAuth, async (req, res) => {
   }
 })
 
-router.post('/setting-audit', rootAuth, async (req, res) => {
-  try {
-    const config = req.body as AuditConfig
-
-    const thisConfig = await getOriginConfig()
-    thisConfig.auditConfig = config
-    const result = await updateConfig(thisConfig)
-    clearConfigCache()
-    if (config.enabled)
-      initAuditService(config)
-    res.send({ status: 'Success', message: '操作成功 | Successfully', data: result.auditConfig })
-  }
-  catch (error) {
-    res.send({ status: 'Fail', message: error.message, data: null })
-  }
-})
-
-router.post('/audit-test', rootAuth, async (req, res) => {
-  try {
-    const { audit, text } = req.body as { audit: AuditConfig; text: string }
-    const config = await getCacheConfig()
-    if (audit.enabled)
-      initAuditService(audit)
-    const result = await containsSensitiveWords(audit, text)
-    if (audit.enabled)
-      initAuditService(config.auditConfig)
-    res.send({ status: 'Success', message: result ? '含敏感词 | Contains sensitive words' : '不含敏感词 | Does not contain sensitive words.', data: null })
-  }
-  catch (error) {
-    res.send({ status: 'Fail', message: error.message, data: null })
-  }
-})
-
 router.get('/setting-keys', rootAuth, async (req, res) => {
   try {
     const result = await getApiKeys()
@@ -1375,4 +1351,5 @@ router.post('/statistics/by-day', auth, async (req, res) => {
 app.use('', router)
 app.use('/api', router)
 
-app.listen(3002, () => globalThis.console.log('Server is running on port 3002'))
+const PORT = Number(process.env.PORT) || 3002
+app.listen(PORT, () => globalThis.console.log(`Server is running on port ${PORT}`))

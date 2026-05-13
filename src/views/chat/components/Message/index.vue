@@ -9,9 +9,10 @@ import { useIconRender } from '@/hooks/useIconRender'
 import { t } from '@/locales'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { copyToClip } from '@/utils/copy'
+import dayjs from 'dayjs'
 
 interface Props {
-  dateTime?: string
+  dateTime?: number
   text?: string
   inversion?: boolean
   error?: boolean
@@ -137,11 +138,11 @@ async function handlePreviousResponse(next: number) {
     </div>
     <div class="overflow-hidden text-sm " :class="[inversion ? 'items-end' : 'items-start']">
       <p v-if="inversion" class="text-xs text-[#b4bbc4]" :class="[inversion ? 'text-right' : 'text-left']">
-        {{ new Date(dateTime as string).toLocaleString() }}
+        {{ dateTime ? dayjs(dateTime).format('YYYY/MM/DD HH:mm:ss') : '' }}
       </p>
       <p v-else class="text-xs text-[#b4bbc4]" :class="[inversion ? 'text-right' : 'text-left']">
         <NSpace>
-          {{ new Date(dateTime as string).toLocaleString() }}
+          {{ dateTime ? dayjs(dateTime).format('YYYY/MM/DD HH:mm:ss') : '' }}
           <NButtonGroup v-if="!inversion && responseCount && responseCount > 1">
             <NButton
               style="cursor: pointer;"
