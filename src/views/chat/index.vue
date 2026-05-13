@@ -14,15 +14,12 @@ import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAuthStore, useChatStore, usePromptStore } from '@/store'
 import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchUploadImages, fetchImageEdit } from '@/api'
+import { createController, abortController, hasController } from '@/utils/abortController'
 import { buildExtraBody } from '@/utils/extraBody'
 import { t } from '@/locales'
 import { debounce } from '@/utils/functions/debounce'
 import IconPrompt from '@/icons/Prompt.vue'
 const Prompt = defineAsyncComponent(() => import('@/components/common/Setting/Prompt.vue'))
-
-let controller = new AbortController()
-let lastChatInfo: any = {}
-let currentChatUuid = 0
 
 const openLongReply = import.meta.env.VITE_GLOB_OPEN_LONG_REPLY === 'true'
 
@@ -48,7 +45,7 @@ const conversationList = computed(() => dataSources.value.filter(item => (!item.
 
 const prompt = ref<string>('')
 const firstLoading = ref<boolean>(false)
-const loading = ref<boolean>(false)
+const loading = computed(() => !!(currentChatHistory.value?.loading))
 const inputRef = ref<Ref | null>(null)
 const showPrompt = ref(false)
 // 图片附件：上传后得到的可访问URL列表
@@ -68,11 +65,16 @@ const promptStore = usePromptStore()
 // 使用storeToRefs，保证store修改后，联想部分能够重新渲染
 const { promptList: promptTemplate } = storeToRefs<any>(promptStore)
 
-// 未知原因刷新页面，loading 状态不会重置，手动重置
-dataSources.value.forEach((item, index) => {
-  if (item.loading)
-    updateChatSome(+uuid, index, { loading: false })
-})
+// 刷新页面导致孤儿 loading 状态清理；有活跃控制器的会话跳过
+const activeHistory = chatStore.getChatHistoryByCurrentActive
+if (!activeHistory?.loading || !hasController(+uuid)) {
+  if (activeHistory?.loading)
+    chatStore.updateHistory(+uuid, { loading: false })
+  dataSources.value.forEach((item, index) => {
+    if (item.loading)
+      updateChatSome(+uuid, index, { loading: false })
+  })
+}
 
 function toAbsolute(u: string): string {
   return (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) ? u : new URL(u, window.location.origin).toString()
@@ -161,10 +163,9 @@ async function onConversation() {
   if (imagesToSend.length > 0)
     attachedImageUrls.value = []
 
-  controller = new AbortController()
+  const ctrl = createController(+uuid)
 
   const chatUuid = Date.now()
-  currentChatUuid = chatUuid
   const attachmentsMarkdown = imagesToSend.length > 0 ? imagesToSend.map(u => `![image](${toAbsolute(u)})`).join('\n') : ''
   const userText = attachmentsMarkdown ? `${message}\n\n${attachmentsMarkdown}` : message
   addChat(
@@ -181,7 +182,7 @@ async function onConversation() {
   )
   scrollToBottom()
 
-  loading.value = true
+  chatStore.updateHistory(+uuid, { loading: true })
   prompt.value = ''
 
   let options: Chat.ConversationRequest = {}
@@ -294,7 +295,7 @@ async function onConversation() {
         options,
         extra_body: extraBody,
         draw: usingDraw.value,
-        signal: controller.signal,
+        signal: ctrl.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
           const { responseText } = xhr
@@ -305,7 +306,6 @@ async function onConversation() {
             chunk = responseText.substring(lastIndex)
           try {
             const data = JSON.parse(chunk)
-            lastChatInfo = data
             const usage = (data.detail && data.detail.usage)
               ? {
                   completion_tokens: data.detail.usage.completion_tokens || null,
@@ -400,7 +400,7 @@ async function onConversation() {
     scrollToBottomIfAtBottom()
   }
   finally {
-    loading.value = false
+    chatStore.updateHistory(+uuid, { loading: false })
   }
 }
 
@@ -408,7 +408,7 @@ async function onRegenerate(index: number) {
   if (loading.value)
     return
 
-  controller = new AbortController()
+  const ctrl = createController(+uuid)
 
   const { requestOptions } = dataSources.value[index]
   let responseCount = dataSources.value[index].responseCount || 1
@@ -421,7 +421,7 @@ async function onRegenerate(index: number) {
   if (requestOptions.options)
     options = { ...requestOptions.options }
 
-  loading.value = true
+  chatStore.updateHistory(+uuid, { loading: true })
   const chatUuid = dataSources.value[index].uuid
   updateChat(
     +uuid,
@@ -459,7 +459,7 @@ async function onRegenerate(index: number) {
         options,
         extra_body: extraBody,
         draw: usingDraw.value,
-        signal: controller.signal,
+        signal: ctrl.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
           const { responseText } = xhr
@@ -470,7 +470,6 @@ async function onRegenerate(index: number) {
             chunk = responseText.substring(lastIndex)
           try {
             const data = JSON.parse(chunk)
-            lastChatInfo = data
             const usage = (data.detail && data.detail.usage)
               ? {
                   completion_tokens: data.detail.usage.completion_tokens || null,
@@ -546,7 +545,7 @@ async function onRegenerate(index: number) {
     )
   }
   finally {
-    loading.value = false
+    chatStore.updateHistory(+uuid, { loading: false })
   }
 }
 
@@ -664,9 +663,17 @@ function handleEnter(event: KeyboardEvent) {
 
 async function handleStop() {
   if (loading.value) {
-    controller.abort()
-    loading.value = false
-    await fetchChatStopResponding(lastChatInfo.text, lastChatInfo.id, lastChatInfo.conversationId, currentChatUuid)
+    abortController(+uuid)
+    chatStore.updateHistory(+uuid, { loading: false })
+    const lastMsg = dataSources.value[dataSources.value.length - 1]
+    if (lastMsg && !lastMsg.inversion) {
+      await fetchChatStopResponding(
+        lastMsg.text,
+        lastMsg.conversationOptions?.parentMessageId ?? '',
+        lastMsg.conversationOptions?.conversationId ?? '',
+        lastMsg.uuid,
+      )
+    }
   }
 }
 
@@ -829,8 +836,7 @@ watch(() => chatStore.active, () => {
 })
 
 onUnmounted(() => {
-  if (loading.value)
-    controller.abort()
+  // 不再中止控制器，切换会话后后台继续流式传输
 })
 </script>
 
