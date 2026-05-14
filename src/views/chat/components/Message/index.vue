@@ -136,7 +136,7 @@ async function handlePreviousResponse(next: number) {
     >
       <AvatarComponent :image="inversion" />
     </div>
-    <div class="overflow-hidden text-sm" :class="[inversion ? 'items-end' : 'items-start']">
+    <div class="flex-1 min-w-0 text-sm" :class="[inversion ? 'items-end' : 'items-start']">
       <p v-if="inversion" class="message-meta" :class="[inversion ? 'text-right' : 'text-left']">
         {{ dateTime ? dayjs(dateTime).format('YYYY/MM/DD HH:mm:ss') : '' }}
       </p>

@@ -93,21 +93,44 @@
 		display: inline-block;
 	}
 
+	table {
+		width: 100%;
+		max-width: 100%;
+		border-collapse: collapse;
+		border-spacing: 0;
+		display: block;
+		overflow-x: auto;
+
+		th,
+		td {
+			padding: 8px 14px;
+			border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12));
+		}
+		
+		tr {
+			background-color: transparent;
+			border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.12));
+		}
+
+		tr:nth-child(2n) {
+			background-color: var(--surface-hover, rgba(0, 0, 0, 0.04));
+		}
+	}
 }
 
-.message-reply,
-.message-request {
+.message-bubble-ai,
+.message-bubble-user {
 	max-width: 100%;
 }
 
-.message-reply .markdown-body,
-.message-request .markdown-body {
+.message-bubble-ai .markdown-body,
+.message-bubble-user .markdown-body {
 	max-width: 100%;
 	overflow-x: auto;
 }
 
-.message-reply .whitespace-pre-wrap,
-.message-request .whitespace-pre-wrap {
+.message-bubble-ai .whitespace-pre-wrap,
+.message-bubble-user .whitespace-pre-wrap {
 	max-width: 100%;
 	overflow-wrap: anywhere;
 	word-break: break-word;
@@ -120,7 +143,7 @@
 
 html.dark {
 
-	.message-reply {
+	.message-bubble-ai {
 		.whitespace-pre-wrap {
 			white-space: pre-wrap;
 			color: var(--n-text-color);
@@ -130,5 +153,20 @@ html.dark {
 	.highlight pre,
 	pre {
 		background-color: #1e1e2e;
+	}
+
+	.markdown-body table {
+		th,
+		td {
+			border-color: rgba(255, 255, 255, 0.12);
+		}
+		
+		tr {
+			border-color: rgba(255, 255, 255, 0.12);
+		}
+
+		tr:nth-child(2n) {
+			background-color: rgba(255, 255, 255, 0.04);
+		}
 	}
 }
