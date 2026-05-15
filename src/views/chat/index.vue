@@ -883,7 +883,7 @@ onUnmounted(() => {
           id="image-wrapper"
           class="w-full m-auto"
           :class="[isMobile ? 'p-2' : 'p-4']"
-          :style="!isMobile ? { maxWidth: '860px' } : {}"
+          :style="!isMobile ? { maxWidth: '892px' } : {}"
         >
           <NSpin :show="firstLoading">
             <template v-if="!dataSources.length">

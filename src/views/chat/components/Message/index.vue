@@ -183,26 +183,21 @@ async function handlePreviousResponse(next: number) {
           </template>
         </NSpace>
       </p>
-      <div
-        class="flex items-end gap-1 mt-2"
-        :class="[inversion ? 'flex-row-reverse' : 'flex-row']"
-      >
-        <div class="flex flex-col gap-2 min-w-0" :class="[inversion ? 'items-end' : 'items-start']" style="flex:1;">
-          <ThinkingBox v-if="!inversion && props.thinking && props.thinking.length > 0"
-            :content="props.thinking"
-            :expanded="props.thinkingExpanded"
-            :loading="props.loading"
-          />
-          <TextComponent
+      <div class="flex flex-col gap-2 mt-2 min-w-0" :class="[inversion ? 'items-end' : 'items-start']">
+        <ThinkingBox v-if="!inversion && props.thinking && props.thinking.length > 0"
+          :content="props.thinking"
+          :expanded="props.thinkingExpanded"
+          :loading="props.loading"
+        />
+        <TextComponent
           ref="textRef"
           :inversion="inversion"
           :error="error"
           :text="text"
           :loading="loading"
           :as-raw-text="asRawText"
-          />
-        </div>
-        <div class="message-actions">
+        />
+        <div class="message-actions flex flex-row items-center gap-1 mt-1">
           <button
             v-if="!inversion"
             class="message-action-btn"
@@ -212,7 +207,7 @@ async function handlePreviousResponse(next: number) {
           </button>
           <NDropdown
             :trigger="isMobile ? 'click' : 'hover'"
-            :placement="!inversion ? 'right' : 'left'"
+            placement="bottom"
             :options="options"
             @select="handleSelect"
           >
@@ -231,7 +226,6 @@ async function handlePreviousResponse(next: number) {
   display: flex;
   width: 100%;
   margin-bottom: 24px;
-  overflow: hidden;
   animation: fadeInUp 0.35s ease-out both;
 }
 
@@ -253,7 +247,8 @@ async function handlePreviousResponse(next: number) {
 
 .message-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   opacity: 0;
   transition: opacity var(--transition-fast);
 }
@@ -264,7 +259,6 @@ async function handlePreviousResponse(next: number) {
 
 .message-action-btn {
   padding: 4px;
-  margin-bottom: 2px;
   color: var(--text-muted);
   border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
