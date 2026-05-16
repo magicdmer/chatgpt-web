@@ -142,7 +142,7 @@ function isActive(uuid: number) {
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   transition: all var(--transition-fast);
   border: 1px solid transparent;
 }

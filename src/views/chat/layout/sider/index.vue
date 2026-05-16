@@ -142,7 +142,7 @@ watch(
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-weight: 500;
   font-size: 13px;
   cursor: pointer;
