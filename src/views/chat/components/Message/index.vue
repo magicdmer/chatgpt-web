@@ -1,7 +1,6 @@
 <script setup lang='ts'>
 import { computed, ref, watch } from 'vue'
 import { NButton, NButtonGroup, NDropdown, NPopover, NSpace, useMessage } from 'naive-ui'
-import AvatarComponent from './Avatar.vue'
 import TextComponent from './Text.vue'
 import ThinkingBox from './ThinkingBox.vue'
 import { SvgIcon } from '@/components/common'
@@ -130,12 +129,6 @@ async function handlePreviousResponse(next: number) {
     class="message-row"
     :class="[{ 'flex-row-reverse': inversion }]"
   >
-    <div
-      class="message-avatar"
-      :class="[inversion ? 'ml-2' : 'mr-2']"
-    >
-      <AvatarComponent :image="inversion" />
-    </div>
     <div class="flex-1 min-w-0 text-sm" :class="[inversion ? 'items-end' : 'items-start']">
       <p v-if="inversion" class="message-meta" :class="[inversion ? 'text-right' : 'text-left']">
         {{ dateTime ? dayjs(dateTime).format('YYYY/MM/DD HH:mm:ss') : '' }}
@@ -227,17 +220,6 @@ async function handlePreviousResponse(next: number) {
   width: 100%;
   margin-bottom: 24px;
   animation: fadeInUp 0.35s ease-out both;
-}
-
-.message-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  overflow: hidden;
-  border-radius: var(--radius-full);
 }
 
 .message-meta {
