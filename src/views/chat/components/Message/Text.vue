@@ -49,7 +49,16 @@ const wrapClass = computed(() => {
 })
 
 const text = computed(() => {
-  const value = props.text ?? ''
+  let value = props.text ?? ''
+  
+  // 简单的解决方法：将 markdown 中的 http:// 图片链接替换为使用 wsrv.nl 代理（将 http 升级为 https）
+  // 匹配 markdown 图片语法: ![alt](http://...)
+  value = value.replace(/!\[([^\]]*)\]\((http:\/\/[^\)]+)\)/g, (match, alt, url) => {
+    // 将原 http 链接通过 wsrv.nl 代理访问
+    const proxyUrl = `https://wsrv.nl/?url=${encodeURIComponent(url)}`
+    return `![${alt}](${proxyUrl})`
+  })
+
   if (!props.asRawText)
     return mdi.render(value)
   return value

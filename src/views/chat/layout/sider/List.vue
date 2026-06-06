@@ -94,7 +94,7 @@ function isActive(uuid: number) {
               @click="handleSelect(item)"
             >
               <span class="chat-history-icon">
-                <SvgIcon v-if="item.loading" icon="ri:loader-4-line" class="animate-spin" />
+                <SvgIcon v-if="item.loading" icon="ri:loader-4-line" class="animate-spin text-[var(--brand-primary)]" />
                 <SvgIcon v-else icon="ri:message-3-line" />
               </span>
               <div class="relative flex-1 overflow-hidden break-all text-ellipsis whitespace-nowrap">

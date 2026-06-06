@@ -120,11 +120,14 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     async addHistory(history: Chat.History, chatData: Chat.Chat[] = []) {
-      await fetchCreateChatRoom(history.title, history.chatModel, history.uuid)
       this.history.unshift(history)
       this.chat.unshift({ uuid: history.uuid, data: chatData })
       this.active = history.uuid
       this.reloadRoute(history.uuid)
+      
+      fetchCreateChatRoom(history.title, history.chatModel, history.uuid).catch((error) => {
+        console.error('新建会话失败:', error)
+      })
     },
 
     updateHistory(uuid: number, edit: Partial<Chat.History>) {
