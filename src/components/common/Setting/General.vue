@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue'
+import localforage from 'localforage'
 import { NButton, NInput, NPopconfirm, NSelect, useMessage } from 'naive-ui'
 import type { Language, Theme } from '@/store/modules/app/helper'
 import { SvgIcon } from '@/components/common'
@@ -66,10 +67,10 @@ async function updateUserInfo(options: Partial<UserInfo>) {
   ms.success(t('common.success'))
 }
 
-function exportData(): void {
+async function exportData(): Promise<void> {
   const date = getCurrentDate()
-  const data: string = localStorage.getItem('chatStorage') || '{}'
-  const jsonString: string = JSON.stringify(JSON.parse(data), null, 2)
+  const data = await localforage.getItem('chatStorage')
+  const jsonString: string = JSON.stringify(data || {}, null, 2)
   const blob: Blob = new Blob([jsonString], { type: 'application/json' })
   const url: string = URL.createObjectURL(blob)
   const link: HTMLAnchorElement = document.createElement('a')
@@ -90,10 +91,10 @@ function importData(event: Event): void {
     return
 
   const reader: FileReader = new FileReader()
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       const data = JSON.parse(reader.result as string)
-      localStorage.setItem('chatStorage', JSON.stringify(data))
+      await localforage.setItem('chatStorage', data)
       ms.success(t('common.success'))
       location.reload()
     }
@@ -106,7 +107,7 @@ function importData(event: Event): void {
 
 async function clearData(): Promise<void> {
   await fetchClearAllChat()
-  localStorage.removeItem('chatStorage')
+  await localforage.removeItem('chatStorage')
   location.reload()
 }
 

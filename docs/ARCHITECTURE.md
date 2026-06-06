@@ -59,12 +59,14 @@
 - 状态管理（Pinia）：
   - `src/store/index.ts` 注册 `Pinia`；`src/store/modules/` 包含 `chat`, `auth`, `setting` 等模块。
   - 典型如 `chat` 模块：维护房间列表与消息历史、上下文开关、模型选择，并调用 `api/`。
+  - **大容量缓存优化**：为了解决生图（Base64）等大体积数据容易撑爆 `localStorage` 5MB 限制的问题，聊天核心数据（`chatStorage`）已由 `localStorage` 迁移至 **IndexedDB**（使用 `localforage` 库）。在 `src/main.ts` 初始化时，通过 `await useChatStore().initStore()` 异步预加载 IndexedDB 数据，之后将其转化为普通对象以避免 Vue Proxy 的克隆异常。
 - 接口调用：
   - `src/utils/request/axios.ts` 设置 `baseURL = import.meta.env.VITE_GLOB_API_URL`，请求拦截自动附加 `Authorization`；响应拦截对非 `200` 抛错。
   - `src/api/index.ts` 统一封装 REST 方法（房间 CRUD、聊天流程、用户与配置管理、审计与邮件等）。
   - 流式响应与思考：聊天接口以服务端流方式返回增量内容，并在 `options.thinking`/`thinking` 字段回传“思考”片段；房间级开关通过 `/room-thinking` 路由控制。
 - UI 框架与布局：
   - 使用 `naive-ui`，根组件 `App.vue` 通过 `NConfigProvider` 注入主题与语言；聊天页面由 `views/chat/layout` 布局（`Sider` + 内容区），移动端自适应。
+  - **极简无头像设计**：移除了传统的用户与 AI 头像（Avatar），精简了冗余按钮（如上述图片编辑），全面采用现代极简的 Indigo-Violet 视觉风格。
 - i18n：
   - `src/locales/*` 提供多语言文案，设置面板、统计、权限等文案较为完整。
 - 开发代理：
@@ -190,6 +192,7 @@
 3. 聊天请求进入 `chatgpt` 模块，按配置与上下文与代理设置调用 ChatGPT；响应边接收边推送（支持进度事件），并写入 `sqlite`（消息与使用量）。
    同时，对于支持“思考”输出的模型，增量回传 `thinking` 片段并最终在 `options.thinking` 中保留完整内容。
 4. 前端 `store` 更新 UI 状态；`views/chat` 以消息列表渲染输出，支持回溯与中止。
+   - **后台生成与乐观更新**：切换会话时不会主动中断控制器（`onUnmounted` 时保留），确保原会话可在后台继续接收流式生成。为防止流式并发导致接口挂起，侧边栏的新建会话逻辑（`addHistory`）采用了**乐观更新（Optimistic UI）**：前端立即响应新建并切换路由，对应的 `/room-create` 请求放在后台异步执行，保证丝滑体验。
 
 图片相关流转：
 - 上传：前端选择图片 -> 调用 `/upload-image(s)` -> 返回静态 URL -> 在输入区预览。
@@ -197,6 +200,10 @@
 - 图片编辑：前端选择源图 + 开启编辑按钮 -> 调用 `/image-edit` -> 返回图片 URL/Markdown 并写入房间消息。
 
 图文对话和图片编辑是通过是否开启编辑按钮来区分的。
+
+> **⚠️ 关键定制说明（供后续开发与 AI 助手参考）：**
+> 为了保持界面极简并整合多模态能力，前端 `src/views/chat/index.vue` 中的图片编辑按钮已被**硬编码默认关闭**（`showEditButton = false`）。
+> 目前所有带有图片的对话请求都会直接回退并复用常规的图文对话（Vision）逻辑，统一走 `/chat-process` 接口。**请后续维护的 AI 与开发者切勿擅自修改或重新开启此按钮逻辑，以此设定为准。**
 
 ## 扩展与改造建议
 

@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
-import { getLocalState, setLocalState } from './helper'
+import { defaultState, getLocalState, setLocalState } from './helper'
 import { router } from '@/router'
 import { fetchClearChat, fetchCreateChatRoom, fetchDeleteChat, fetchDeleteChatRoom, fetchGetChatHistory, fetchGetChatRooms, fetchRenameChatRoom, fetchUpdateChatRoomChatModel, fetchUpdateChatRoomUsingContext, fetchUpdateChatRoomUsingDraw, fetchUpdateChatRoomUsingThinking } from '@/api'
 
 export const useChatStore = defineStore('chat-store', {
-  state: (): Chat.ChatState => getLocalState(),
+  state: (): Chat.ChatState => defaultState(),
 
   getters: {
     getChatHistoryByCurrentActive(state: Chat.ChatState) {
@@ -24,6 +24,11 @@ export const useChatStore = defineStore('chat-store', {
   },
 
   actions: {
+    async initStore() {
+      const state = await getLocalState()
+      this.$patch(state)
+    },
+
     async syncHistory(callback?: () => void) {
       const rooms = (await fetchGetChatRooms()).data
       let uuid = this.active
