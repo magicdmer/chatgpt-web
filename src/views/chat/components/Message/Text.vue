@@ -109,12 +109,21 @@ onUnmounted(() => {
   <div :class="wrapClass">
     <div ref="textRef" class="leading-relaxed break-words">
       <div v-if="!inversion" class="flex items-end">
-        <div v-if="!props.asRawText" class="w-full markdown-body" v-html="text" />
-        <div v-else class="w-full whitespace-pre-wrap" v-text="text" />
-        <span v-if="loading" class="dark:text-white w-[4px] h-[20px] block animate-blink" />
+        <template v-if="loading && !text">
+          <div class="typing-indicator">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+          </div>
+        </template>
+        <template v-else>
+          <div v-if="!props.asRawText" class="markdown-body" v-html="text" />
+          <div v-else class="whitespace-pre-wrap" v-text="text" />
+          <span v-if="loading" class="dark:text-white w-[4px] h-[20px] block animate-blink" style="margin-left: 4px;" />
+        </template>
       </div>
       <div v-else>
-        <div v-if="!props.asRawText" class="w-full markdown-body" v-html="text" />
+        <div v-if="!props.asRawText" class="markdown-body" v-html="text" />
         <div v-else class="whitespace-pre-wrap" v-text="text" />
       </div>
     </div>
@@ -126,6 +135,42 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  gap: 4px;
+  height: 24px;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--text-primary, #666);
+  animation: typing-bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes typing-bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .message-bubble-user {
   border-radius: var(--radius-md);
   background: var(--surface-bubble-user);
