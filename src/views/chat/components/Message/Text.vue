@@ -45,6 +45,7 @@ const wrapClass = computed(() => {
     isMobile.value ? 'p-2' : 'px-3 py-2',
     props.inversion ? 'message-bubble-user' : 'message-bubble-ai',
     { 'text-red-500': props.error },
+    { 'no-bg': props.loading && !text.value && !props.inversion },
   ]
 })
 
@@ -59,8 +60,10 @@ const text = computed(() => {
     return `![${alt}](${proxyUrl})`
   })
 
-  if (!props.asRawText)
+  if (!props.asRawText) {
     return mdi.render(value)
+  }
+  
   return value
 })
 
@@ -117,14 +120,13 @@ onUnmounted(() => {
           </div>
         </template>
         <template v-else>
-          <div v-if="!props.asRawText" class="markdown-body" v-html="text" />
-          <div v-else class="whitespace-pre-wrap" v-text="text" />
-          <span v-if="loading" class="dark:text-white w-[4px] h-[20px] block animate-blink" style="margin-left: 4px;" />
+          <div v-if="!props.asRawText" class="w-full markdown-body" v-html="text" />
+          <div v-else class="w-full whitespace-pre-wrap" v-text="text" />
         </template>
       </div>
       <div v-else>
-        <div v-if="!props.asRawText" class="markdown-body" v-html="text" />
-        <div v-else class="whitespace-pre-wrap" v-text="text" />
+        <div v-if="!props.asRawText" class="w-full markdown-body" v-html="text" />
+        <div v-else class="w-full whitespace-pre-wrap" v-text="text" />
       </div>
     </div>
   </div>
@@ -189,6 +191,10 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   background: var(--surface-bubble-ai);
   color: var(--text-primary);
+}
+
+.no-bg {
+  background: transparent !important;
 }
 </style>
 
