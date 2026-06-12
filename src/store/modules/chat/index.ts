@@ -60,25 +60,30 @@ export const useChatStore = defineStore('chat-store', {
         callback && callback()
         return
       }
-      const hisroty = this.history.filter(item => item.uuid === h.uuid)[0]
-      if (hisroty === undefined || hisroty.loading || hisroty.all) {
+      let historyIndex = this.history.findIndex(item => item.uuid === h.uuid)
+      if (historyIndex === -1 || this.history[historyIndex].loading || this.history[historyIndex].all) {
         if (lastId === undefined) {
           // 加载更多不回调 避免加载概率消失
           callback && callback()
         }
-        if (hisroty?.all ?? false)
+        if (historyIndex !== -1 && this.history[historyIndex].all)
           callbackForEmptyMessage && callbackForEmptyMessage()
         return
       }
       try {
-        hisroty.loading = true
-        const chatIndex = this.chat.findIndex(item => item.uuid === h.uuid)
+        this.history[historyIndex].loading = true
+        let chatIndex = this.chat.findIndex(item => item.uuid === h.uuid)
         if (chatIndex <= -1 || this.chat[chatIndex].data.length <= 0 || lastId !== undefined) {
           callbackForStartRequest && callbackForStartRequest()
           const chatData = (await fetchGetChatHistory(h.uuid, lastId)).data
-          if (chatData.length <= 0)
-            hisroty.all = true
+          historyIndex = this.history.findIndex(item => item.uuid === h.uuid)
+          if (historyIndex === -1)
+            return
 
+          if (chatData.length <= 0)
+            this.history[historyIndex].all = true
+
+          chatIndex = this.chat.findIndex(item => item.uuid === h.uuid)
           if (chatIndex <= -1)
             this.chat.unshift({ uuid: h.uuid, data: chatData })
           else
@@ -86,8 +91,11 @@ export const useChatStore = defineStore('chat-store', {
         }
       }
       finally {
-        hisroty.loading = false
-        if (hisroty.all)
+        historyIndex = this.history.findIndex(item => item.uuid === h.uuid)
+        if (historyIndex !== -1)
+          this.history[historyIndex].loading = false
+
+        if (historyIndex !== -1 && this.history[historyIndex].all)
           callbackForEmptyMessage && callbackForEmptyMessage()
         this.recordState()
         callback && callback()
@@ -146,23 +154,28 @@ export const useChatStore = defineStore('chat-store', {
     },
 
     async deleteHistory(index: number) {
-      await fetchDeleteChatRoom(this.history[index].uuid)
-      this.history.splice(index, 1)
-      this.chat.splice(index, 1)
+      const targetUuid = this.history[index].uuid
+      await fetchDeleteChatRoom(targetUuid)
+      
+      const currentIndex = this.history.findIndex(item => item.uuid === targetUuid)
+      if (currentIndex !== -1) {
+        this.history.splice(currentIndex, 1)
+        this.chat.splice(currentIndex, 1)
+      }
 
       if (this.history.length === 0) {
         await this.addHistory({ title: 'New Chat', chatModel: 'gpt-3.5-turbo', uuid: Date.now(), isEdit: false, usingContext: true, usingThinking: false, usingDraw: false })
         return
       }
 
-      if (index > 0 && index <= this.history.length) {
-        const uuid = this.history[index - 1].uuid
+      if (currentIndex > 0 && currentIndex <= this.history.length) {
+        const uuid = this.history[currentIndex - 1].uuid
         this.active = uuid
         this.reloadRoute(uuid)
         return
       }
 
-      if (index === 0) {
+      if (currentIndex === 0) {
         if (this.history.length > 0) {
           const uuid = this.history[0].uuid
           this.active = uuid
@@ -170,7 +183,7 @@ export const useChatStore = defineStore('chat-store', {
         }
       }
 
-      if (index > this.history.length) {
+      if (currentIndex > this.history.length) {
         const uuid = this.history[this.history.length - 1].uuid
         this.active = uuid
         this.reloadRoute(uuid)
