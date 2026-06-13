@@ -136,6 +136,8 @@ export default {
     userRoles: 'User Role',
     status: 'Status',
     chatModels: 'Chat Models',
+    defaultChatModel: 'Default Model',
+    defaultChatModelTip: 'Model selected by default for new chats',
     remark: 'Remark',
     email: 'Email',
     password: 'Password',

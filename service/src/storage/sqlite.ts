@@ -46,6 +46,7 @@ interface UserDBRow {
   updateTime?: string
   roles: string
   remark?: string
+  config?: string
 }
 
 interface ConfigDBRow {
@@ -138,6 +139,11 @@ db.serialize(() => {
     roles TEXT DEFAULT '[1]',
     remark TEXT
   )`)
+
+  // 尝试为 user 增加 config 字段（若已存在则忽略错误）
+  db.run('ALTER TABLE user ADD COLUMN config TEXT', [], (err) => {
+    // ignore error if column already exists
+  })
 
   // 创建配置表
   db.run(`CREATE TABLE IF NOT EXISTS config (
@@ -330,7 +336,7 @@ export async function getUser(email: string): Promise<UserInfo | null> {
   userInfo.updateTime = row.updateTime
   userInfo.roles = JSON.parse(row.roles)
   userInfo.remark = row.remark
-  
+  userInfo.config = JSON.parse(row.config || '{}')  
   initUserInfo(userInfo)
   return userInfo
 }
@@ -729,6 +735,7 @@ export async function getUserById(userId: string): Promise<UserInfo> {
           userInfo.updateTime = row.updateTime
           userInfo.roles = JSON.parse(row.roles)
           userInfo.remark = row.remark
+          userInfo.config = JSON.parse(row.config || '{}')
           resolve(userInfo)
         }
         else resolve(null)
@@ -762,6 +769,7 @@ export async function getUsers(page: number, size: number): Promise<{ users: Use
     userInfo.updateTime = row.updateTime
     userInfo.roles = JSON.parse(row.roles)
     userInfo.remark = row.remark
+    userInfo.config = JSON.parse(row.config || '{}')
     return userInfo
   })
 
@@ -849,8 +857,8 @@ export async function updateUser(userId: string, roles: UserRole[], password: st
 // 更新用户基本信息
 export async function updateUserInfo(userId: string, user: UserInfo) {
   return new Promise<void>((resolve, reject) => {
-    const sql = 'UPDATE user SET name = ?, description = ?, avatar = ? WHERE id = ?'
-    db.run(sql, [user.name, user.description, user.avatar, Number(userId)], (err) => {
+    const sql = 'UPDATE user SET name = ?, description = ?, avatar = ?, config = ? WHERE id = ?'
+    db.run(sql, [user.name, user.description, user.avatar, JSON.stringify(user.config ?? {}), Number(userId)], (err) => {
       if (err) reject(err)
       else resolve()
     })

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { defaultState, getLocalState, setLocalState } from './helper'
 import { router } from '@/router'
+import { getDefaultChatModel } from '@/utils/chatModel'
 import { fetchClearChat, fetchCreateChatRoom, fetchDeleteChat, fetchDeleteChatRoom, fetchGetChatHistory, fetchGetChatRooms, fetchRenameChatRoom, fetchUpdateChatRoomChatModel, fetchUpdateChatRoomUsingContext, fetchUpdateChatRoomUsingDraw, fetchUpdateChatRoomUsingThinking } from '@/api'
 
 export const useChatStore = defineStore('chat-store', {
@@ -44,7 +45,7 @@ export const useChatStore = defineStore('chat-store', {
         this.chat.unshift({ uuid: r.uuid, data: [] })
       }
       if (uuid == null) {
-        await this.addHistory({ title: 'New Chat', uuid: Date.now(), isEdit: false, usingContext: true, usingThinking: false, usingDraw: false, chatModel: 'gpt-3.5-turbo' })
+        await this.addHistory({ title: 'New Chat', uuid: Date.now(), isEdit: false, usingContext: true, usingThinking: false, usingDraw: false, chatModel: getDefaultChatModel() })
       }
       else {
         this.active = uuid
@@ -164,7 +165,7 @@ export const useChatStore = defineStore('chat-store', {
       }
 
       if (this.history.length === 0) {
-        await this.addHistory({ title: 'New Chat', chatModel: 'gpt-3.5-turbo', uuid: Date.now(), isEdit: false, usingContext: true, usingThinking: false, usingDraw: false })
+        await this.addHistory({ title: 'New Chat', chatModel: getDefaultChatModel(), uuid: Date.now(), isEdit: false, usingContext: true, usingThinking: false, usingDraw: false })
         return
       }
 
@@ -211,8 +212,9 @@ export const useChatStore = defineStore('chat-store', {
       if (!uuid || uuid === 0) {
         if (this.history.length === 0) {
           const uuid = Date.now()
-          fetchCreateChatRoom(chat.text, 'gpt-3.5-turbo', uuid)
-          this.history.unshift({ uuid, title: chat.text, isEdit: false, usingContext: true, usingThinking: false, usingDraw: false, chatModel: 'gpt-3.5-turbo' })
+          const chatModel = getDefaultChatModel()
+          fetchCreateChatRoom(chat.text, chatModel, uuid)
+          this.history.unshift({ uuid, title: chat.text, isEdit: false, usingContext: true, usingThinking: false, usingDraw: false, chatModel })
           this.chat.unshift({ uuid, data: [chat] })
           this.active = uuid
           this.recordState()

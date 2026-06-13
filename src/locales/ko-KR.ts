@@ -124,6 +124,8 @@ export default {
     userRoles: 'User Role',
     status: 'Status',
     chatModels: 'Chat Models',
+    defaultChatModel: '기본 모델',
+    defaultChatModelTip: '새 대화에 기본으로 선택되는 모델',
     remark: 'Remark',
     email: 'Email',
     password: 'Password',

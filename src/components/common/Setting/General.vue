@@ -4,14 +4,15 @@ import localforage from 'localforage'
 import { NButton, NInput, NPopconfirm, NSelect, useMessage } from 'naive-ui'
 import type { Language, Theme } from '@/store/modules/app/helper'
 import { SvgIcon } from '@/components/common'
-import { useAppStore, useUserStore } from '@/store'
+import { useAppStore, useAuthStore, useUserStore } from '@/store'
 import type { UserInfo } from '@/store/modules/user/helper'
 import { getCurrentDate } from '@/utils/functions'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { t } from '@/locales'
-import { fetchClearAllChat } from '@/api'
+import { fetchClearAllChat, fetchUpdateUserInfo } from '@/api'
 
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const userStore = useUserStore()
 
 const { isMobile } = useBasicLayout()
@@ -27,6 +28,8 @@ const avatar = ref(userInfo.value.avatar ?? '')
 const name = ref(userInfo.value.name ?? '')
 
 const description = ref(userInfo.value.description ?? '')
+
+const chatModel = ref(authStore.session?.userInfo?.config?.chatModel ?? '')
 
 const language = computed({
   get() {
@@ -63,7 +66,10 @@ const languageOptions: { label: string; key: Language; value: Language }[] = [
 ]
 
 async function updateUserInfo(options: Partial<UserInfo>) {
-  await userStore.updateUserInfo(true, options)
+  await fetchUpdateUserInfo(name.value, avatar.value, description.value, chatModel.value)
+  await userStore.updateUserInfo(false, options)
+  // 刷新会话，使 userInfo.config 与新建会话的默认模型立即生效
+  await authStore.getSession()
   ms.success(t('common.success'))
 }
 
@@ -198,6 +204,19 @@ function handleImportButtonClick(): void {
             :value="language"
             :options="languageOptions"
             @update-value="value => appStore.setLanguage(value)"
+          />
+        </div>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span class="flex-shrink-0 w-[100px]">{{ $t('setting.defaultChatModel') }}</span>
+        <div class="flex-1">
+          <NSelect
+            style="width: 200px"
+            :value="chatModel"
+            :options="authStore.session?.chatModels"
+            :placeholder="$t('setting.defaultChatModelTip')"
+            clearable
+            @update-value="(val) => chatModel = val ?? ''"
           />
         </div>
       </div>

@@ -112,10 +112,10 @@ export function fetchRegister<T = any>(username: string, password: string) {
   })
 }
 
-export function fetchUpdateUserInfo<T = any>(name: string, avatar: string, description: string) {
+export function fetchUpdateUserInfo<T = any>(name: string, avatar: string, description: string, chatModel?: string) {
   return post<T>({
     url: '/user-info',
-    data: { name, avatar, description },
+    data: { name, avatar, description, chatModel },
   })
 }
 
@@ -155,7 +155,7 @@ export function fetchGetChatRooms<T = any>() {
 export function fetchCreateChatRoom<T = any>(title: string, model: string, roomId: number) {
   return post<T>({
     url: '/room-create',
-    data: { title, model, roomId },
+    data: { title, chatModel: model, roomId },
   })
 }
 

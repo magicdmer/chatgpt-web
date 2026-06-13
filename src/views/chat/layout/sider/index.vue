@@ -7,6 +7,7 @@ import Footer from './Footer.vue'
 import { useAppStore, useAuthStore, useChatStore } from '@/store'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { PromptStore, SvgIcon } from '@/components/common'
+import { getDefaultChatModel } from '@/utils/chatModel'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
@@ -18,7 +19,7 @@ const show = ref(false)
 const collapsed = computed(() => appStore.siderCollapsed)
 
 async function handleAdd() {
-  await chatStore.addHistory({ title: 'New Chat', uuid: Date.now(), isEdit: false, usingContext: true, chatModel: 'gpt-3.5-turbo' })
+  await chatStore.addHistory({ title: 'New Chat', uuid: Date.now(), isEdit: false, usingContext: true, chatModel: getDefaultChatModel() })
   if (isMobile.value)
     appStore.setSiderCollapsed(true)
 }

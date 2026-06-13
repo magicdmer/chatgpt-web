@@ -24,6 +24,7 @@ export class SiteConfig {
   registerReview?: boolean
   registerMails?: string
   siteDomain?: string
+  defaultChatModel?: string
 }
 
 export class MailConfig {

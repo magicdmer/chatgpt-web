@@ -4,9 +4,11 @@ import { NButton, NInput, NSpin, NSwitch, useMessage } from 'naive-ui'
 import type { ConfigState } from './model'
 import { SiteConfig } from './model'
 import { fetchChatConfig, fetchUpdateSite } from '@/api'
+import { useAuthStore } from '@/store'
 import { t } from '@/locales'
 
 const ms = useMessage()
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -33,6 +35,7 @@ async function updateSiteInfo(site?: SiteConfig) {
   try {
     const { data } = await fetchUpdateSite(site)
     config.value = data
+    await authStore.getSession()
     ms.success(t('common.success'))
   }
   catch (error: any) {
@@ -114,6 +117,16 @@ onMounted(() => {
             <NInput
               :value="config && config.registerMails" :placeholder="$t('setting.registerReviewTip')"
               @input="(val) => { if (config) config.registerMails = val }"
+            />
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.defaultChatModel') }}</span>
+          <div class="flex-1">
+            <NInput
+              :value="config && config.defaultChatModel"
+              :placeholder="$t('setting.defaultChatModelTip')"
+              @input="(val) => { if (config) config.defaultChatModel = val }"
             />
           </div>
         </div>

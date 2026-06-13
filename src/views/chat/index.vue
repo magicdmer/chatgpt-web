@@ -16,6 +16,7 @@ import { useIconRender } from '@/hooks/useIconRender'
 import { useAuthStore, useChatStore, usePromptStore } from '@/store'
 import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchUploadImages, fetchImageEdit } from '@/api'
 import { createController, abortController, hasController } from '@/utils/abortController'
+import { getDefaultChatModel } from '@/utils/chatModel'
 import { buildExtraBody } from '@/utils/extraBody'
 import { t } from '@/locales'
 import { debounce } from '@/utils/functions/debounce'
@@ -38,7 +39,7 @@ const { uuid } = route.params as { uuid: string }
 
 const currentChatHistory = computed(() => chatStore.getChatHistoryByCurrentActive)
 const usingContext = computed(() => !!(currentChatHistory?.value?.usingContext ?? true))
-const currentChatModel = computed(() => currentChatHistory?.value?.chatModel ?? 'gpt-3.5-turbo')
+const currentChatModel = computed(() => currentChatHistory?.value?.chatModel ?? getDefaultChatModel())
 const usingThinking = computed(() => currentChatHistory?.value?.usingThinking ?? false)
 const usingDraw = computed(() => currentChatHistory?.value?.usingDraw ?? false)
 const dataSources = computed(() => chatStore.getChatByUuid(+uuid))
@@ -851,7 +852,7 @@ watch(
     const list = (options || []).map((o: any) => o?.value ?? o?.key ?? o?.label)
     const cur = currentChatModel.value
     if (list.length && !list.includes(cur)) {
-      const next = list[0]
+      const next = getDefaultChatModel()
       if (next)
         handleSyncChatModel(next)
     }

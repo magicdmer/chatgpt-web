@@ -7,7 +7,7 @@ import type { ChatMessage } from './chatgpt'
 import { abortChatProcess, chatConfig, chatReplyProcess, listModelsForKey, createClient } from './chatgpt'
 import { auth, getUserId } from './middleware/auth'
 import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig } from './storage/config'
-import { Status, UsageResponse, UserRole, chatModelOptions, KeyConfig } from './storage/model'
+import { Status, UsageResponse, UserRole, UserConfig, chatModelOptions, KeyConfig } from './storage/model'
 import type { ChatInfo, ChatOptions, Config, MailConfig, SiteConfig, UserInfo, UserOption } from './storage/model'
 import multer from 'multer'
 import path from 'path'
@@ -907,7 +907,7 @@ router.post('/config', rootAuth, async (req, res) => {
       key: string
       value: string
     }[] = []
-    let userInfo: { name: string; description: string; avatar: string; userId: string; root: boolean; roles: UserRole[] }
+    let userInfo: { name: string; description: string; avatar: string; userId: string; root: boolean; roles: UserRole[]; config: UserConfig }
     if (userId != null) {
       const user = await getUserById(userId)
       userInfo = {
@@ -917,6 +917,7 @@ router.post('/config', rootAuth, async (req, res) => {
         userId: user.id.toString(),
         root: user.roles.includes(UserRole.Admin),
         roles: user.roles,
+        config: user.config ?? {},
       }
 
       const keys = (await getCacheApiKeys())
@@ -957,6 +958,7 @@ router.post('/config', rootAuth, async (req, res) => {
             ? dynamicAllModels.map((model) => ({ label: model, key: model, value: model }))
             : chatModelOptions
         })(),
+        defaultChatModel: config.siteConfig?.defaultChatModel ?? '',
         userInfo,
       },
     })
@@ -1036,13 +1038,13 @@ router.post('/user-reset-password', authLimiter, async (req, res) => {
 
 router.post('/user-info', auth, async (req, res) => {
   try {
-    const { name, avatar, description } = req.body as UserInfo
+    const { name, avatar, description, chatModel } = req.body as UserInfo & { chatModel?: string }
     const userId = req.headers.userId.toString()
 
     const user = await getUserById(userId)
     if (user == null || user.status !== Status.Normal)
       throw new Error('用户不存在 | User does not exist.')
-    await updateUserInfo(userId, { name, avatar, description } as UserInfo)
+    await updateUserInfo(userId, { name, avatar, description, config: { ...(user.config ?? {}), chatModel } } as UserInfo)
     res.send({ status: 'Success', message: '更新成功 | Update successfully' })
   }
   catch (error) {

@@ -21,6 +21,10 @@ export enum UserRole {
   Partner = 8,
 }
 
+export class UserConfig {
+  chatModel?: string
+}
+
 export class UserInfo {
   id?: number
   name: string
@@ -35,6 +39,7 @@ export class UserInfo {
   updateTime?: string
   roles?: UserRole[]
   remark?: string
+  config?: UserConfig
   constructor(email: string, password: string) {
     this.name = email
     this.email = email
@@ -232,6 +237,7 @@ export class SiteConfig {
     public registerReview?: boolean,
     public registerMails?: string,
     public siteDomain?: string,
+    public defaultChatModel?: string,
   ) { }
 }
 

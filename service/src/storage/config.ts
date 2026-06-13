@@ -43,7 +43,8 @@ export async function getOriginConfig() {
         process.env.REGISTER_ENABLED === 'true',
         process.env.REGISTER_REVIEW === 'true',
         process.env.REGISTER_MAILS,
-        process.env.SITE_DOMAIN),
+        process.env.SITE_DOMAIN,
+        process.env.DEFAULT_CHAT_MODEL || ''),
       new MailConfig(process.env.SMTP_HOST,
         !isNaN(+process.env.SMTP_PORT) ? +process.env.SMTP_PORT : 465,
         process.env.SMTP_TSL === 'true',
@@ -64,6 +65,8 @@ export async function getOriginConfig() {
     }
     if (config.siteConfig.registerReview === undefined)
       config.siteConfig.registerReview = process.env.REGISTER_REVIEW === 'true'
+    if (config.siteConfig.defaultChatModel === undefined)
+      config.siteConfig.defaultChatModel = process.env.DEFAULT_CHAT_MODEL || ''
   }
   return config
 }

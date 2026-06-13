@@ -4,7 +4,7 @@ import type { UserInfo } from '../user/helper'
 import { getToken, removeToken, setToken } from './helper'
 import { store, useChatStore, useUserStore } from '@/store'
 import { fetchSession } from '@/api'
-import type { UserConfig } from '@/components/common/Setting/model'
+import type { UserConfig, UserRole } from '@/components/common/Setting/model'
 
 interface SessionResponse {
   auth: boolean
@@ -20,7 +20,8 @@ interface SessionResponse {
     key: string
     value: string
   }[]
-  userInfo: { name: string; description: string; avatar: string; userId: string; root: boolean; config: UserConfig }
+  defaultChatModel?: string
+  userInfo: { name: string; description: string; avatar: string; userId: string; root: boolean; roles: UserRole[]; config: UserConfig }
 }
 
 export interface AuthState {
