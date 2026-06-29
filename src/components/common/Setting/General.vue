@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue'
 import localforage from 'localforage'
-import { NButton, NInput, NPopconfirm, NSelect, useMessage } from 'naive-ui'
+import { NButton, NInput, NPopconfirm, NSelect, NSwitch, useMessage } from 'naive-ui'
 import type { Language, Theme } from '@/store/modules/app/helper'
 import { SvgIcon } from '@/components/common'
 import { useAppStore, useAuthStore, useUserStore } from '@/store'
@@ -30,6 +30,8 @@ const name = ref(userInfo.value.name ?? '')
 const description = ref(userInfo.value.description ?? '')
 
 const chatModel = ref(authStore.session?.userInfo?.config?.chatModel ?? '')
+
+const advancedMode = ref(appStore.advancedMode)
 
 const language = computed({
   get() {
@@ -68,6 +70,8 @@ const languageOptions: { label: string; key: Language; value: Language }[] = [
 async function updateUserInfo(options: Partial<UserInfo>) {
   await fetchUpdateUserInfo(name.value, avatar.value, description.value, chatModel.value)
   await userStore.updateUserInfo(false, options)
+  // 保存高级模式开关状态
+  appStore.setAdvancedMode(advancedMode.value)
   // 刷新会话，使 userInfo.config 与新建会话的默认模型立即生效
   await authStore.getSession()
   ms.success(t('common.success'))
@@ -178,6 +182,13 @@ function handleImportButtonClick(): void {
             </template>
             {{ $t('chat.clearHistoryConfirm') }}
           </NPopconfirm>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span class="flex-shrink-0 w-[100px]">{{ $t('setting.advancedMode') }}</span>
+        <div class="flex flex-wrap items-center gap-4">
+          <NSwitch v-model:value="advancedMode" />
+          <span class="text-xs text-gray-400">{{ $t('setting.advancedModeTip') }}</span>
         </div>
       </div>
       <div class="flex items-center space-x-4">

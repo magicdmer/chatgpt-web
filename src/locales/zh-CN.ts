@@ -141,6 +141,8 @@ export default {
     remark: '备注',
     email: '电子邮箱',
     password: '密码',
+    advancedMode: '高级模式',
+    advancedModeTip: '开启后将显示模型选择等专业控制选项',
   },
   store: {
     siderButton: '提示词商店',

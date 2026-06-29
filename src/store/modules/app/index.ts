@@ -23,6 +23,11 @@ export const useAppStore = defineStore('app-store', {
       }
     },
 
+    setAdvancedMode(mode: boolean) {
+      this.advancedMode = mode
+      this.recordState()
+    },
+
     recordState() {
       setLocalSetting(this.$state)
     },

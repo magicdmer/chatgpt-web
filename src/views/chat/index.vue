@@ -13,7 +13,7 @@ import HeaderComponent from './components/Header/index.vue'
 import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useIconRender } from '@/hooks/useIconRender'
-import { useAuthStore, useChatStore, usePromptStore } from '@/store'
+import { useAppStore, useAuthStore, useChatStore, usePromptStore } from '@/store'
 import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchUploadImages, fetchImageEdit } from '@/api'
 import { createController, abortController, hasController } from '@/utils/abortController'
 import { getDefaultChatModel } from '@/utils/chatModel'
@@ -27,6 +27,7 @@ const openLongReply = import.meta.env.VITE_GLOB_OPEN_LONG_REPLY === 'true'
 const route = useRoute()
 const dialog = useDialog()
 const ms = useMessage()
+const appStore = useAppStore()
 const authStore = useAuthStore()
 const chatStore = useChatStore()
 
@@ -296,7 +297,7 @@ async function onConversation() {
         images: imagesToSend.length > 0 ? imagesToSend : undefined,
         options,
         extra_body: extraBody,
-        draw: usingDraw.value,
+        draw: appStore.advancedMode ? usingDraw.value : false,
         signal: ctrl.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
@@ -460,7 +461,7 @@ async function onRegenerate(index: number) {
         images: originalImages.length > 0 ? originalImages : undefined,
         options,
         extra_body: extraBody,
-        draw: usingDraw.value,
+        draw: appStore.advancedMode ? usingDraw.value : false,
         signal: ctrl.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
@@ -941,7 +942,7 @@ onUnmounted(() => {
                   <SvgIcon icon="ri:lightbulb-line" />
                 </span>
               </HoverButton>
-              <HoverButton v-if="!isMobile" @click="handleToggleUsingDraw">
+              <HoverButton v-if="!isMobile && appStore.advancedMode" @click="handleToggleUsingDraw">
                 <span class="text-lg" :class="{ 'toolbar-icon-active': usingDraw, 'toolbar-icon': !usingDraw }">
                   <SvgIcon icon="ri:image-line" />
                 </span>
@@ -976,7 +977,7 @@ onUnmounted(() => {
                   <SvgIcon icon="ri:delete-bin-line" />
                 </span>
               </HoverButton>
-              <HoverButton v-if="isMobile" @click="handleToggleUsingDraw">
+              <HoverButton v-if="isMobile && appStore.advancedMode" @click="handleToggleUsingDraw">
                 <span class="text-lg" :class="{ 'toolbar-icon-active': usingDraw, 'toolbar-icon': !usingDraw }">
                   <SvgIcon icon="ri:image-line" />
                 </span>
@@ -989,6 +990,7 @@ onUnmounted(() => {
             </div>
 
             <NSelect
+              v-show="appStore.advancedMode"
               class="model-select"
               :value="currentChatModel"
               :options="authStore.session?.chatModels"
