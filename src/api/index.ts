@@ -20,6 +20,7 @@ export function fetchChatAPIProcess<T = any>(
     extra_body?: Record<string, any>
     signal?: GenericAbortSignal
     draw?: boolean
+    autoContinue?: boolean
     onDownloadProgress?: (progressEvent: AxiosProgressEvent) => void },
 ) {
   const settingStore = useSettingStore()
@@ -33,6 +34,7 @@ export function fetchChatAPIProcess<T = any>(
     options: params.options,
     extra_body: params.extra_body,
     draw: params.draw,
+    autoContinue: params.autoContinue,
   }
 
   data = {
@@ -320,5 +322,18 @@ export function fetchUpsertApiKey<T = any>(keyConfig: KeyConfig) {
   return post<T>({
     url: '/setting-key-upsert',
     data: keyConfig,
+  })
+}
+
+export function fetchPluginList<T = any>() {
+  return get<T>({
+    url: '/plugin/list',
+  })
+}
+
+export function fetchUpdatePlugin<T = any>(name: string, settings: Record<string, any>) {
+  return post<T>({
+    url: '/plugin/update',
+    data: { name, settings },
   })
 }

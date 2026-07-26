@@ -11,6 +11,7 @@ declare namespace Chat {
     loading?: boolean
     thinking?: string
     thinkingExpanded?: boolean
+    toolStatus?: string
     conversationOptions?: ConversationRequest | null
     requestOptions: { prompt: string; options?: ConversationRequest | null; images?: string[] }
     usage?: {
@@ -60,5 +61,6 @@ declare namespace Chat {
     parentMessageId: string
     role: string
     text: string
+    toolStatus?: string
   }
 }

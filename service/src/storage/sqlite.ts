@@ -2,7 +2,7 @@ import { Database } from 'sqlite3'
 import * as dotenv from 'dotenv'
 import dayjs from 'dayjs'
 import { md5 } from '../utils/security'
-import { ChatInfo, ChatRoom, ChatUsage, Status, UserInfo, UserRole, Config, ChatOptions, KeyConfig } from './model'
+import { ChatInfo, ChatRoom, ChatUsage, Status, UserInfo, UserRole, Config, ChatOptions, KeyConfig, PluginConfig } from './model'
 import type { UsageResponse } from './model'
 import fs from 'fs'
 
@@ -72,6 +72,12 @@ interface KeyConfigDBRow {
   apiBaseUrl?: string
   remark?: string
   availableModels?: string
+}
+
+interface PluginConfigDBRow {
+  id: number
+  name: string
+  settings: string
 }
 
 dotenv.config()
@@ -190,6 +196,13 @@ db.serialize(() => {
   db.run('ALTER TABLE key_config ADD COLUMN availableModels TEXT DEFAULT \'[]\'', [], (err) => {
     // ignore error if column already exists
   })
+
+  // 创建插件配置表
+  db.run(`CREATE TABLE IF NOT EXISTS plugin_config (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    settings TEXT DEFAULT '{}'
+  )`)
 })
 
 // 修改数据库查询方法的类型定义
@@ -981,5 +994,51 @@ const runTransaction = async (queries: Array<{sql: string, params: any[]}>) => {
         else resolve(null)
       })
     })
+  })
+}
+
+// 获取所有插件配置
+export async function getPluginConfigs(): Promise<PluginConfig[]> {
+  const rows = await promisifyAll<PluginConfigDBRow>('SELECT * FROM plugin_config')
+  return rows.map(row => {
+    const config = new PluginConfig(row.name, JSON.parse(row.settings))
+    config.id = row.id
+    return config
+  })
+}
+
+// 获取单个插件配置
+export async function getPluginConfig(name: string): Promise<PluginConfig | null> {
+  const row = await promisifyGet<PluginConfigDBRow>('SELECT * FROM plugin_config WHERE name = ?', [name])
+  if (!row) return null
+  const config = new PluginConfig(row.name, JSON.parse(row.settings))
+  config.id = row.id
+  return config
+}
+
+// 更新插件配置
+export async function updatePluginConfig(name: string, settings: Record<string, any>): Promise<PluginConfig> {
+  const existing = await getPluginConfig(name)
+  return new Promise<PluginConfig>((resolve, reject) => {
+    if (existing) {
+      const sql = 'UPDATE plugin_config SET settings = ? WHERE name = ?'
+      db.run(sql, [JSON.stringify(settings), name], (err) => {
+        if (err) reject(err)
+        else {
+          existing.settings = settings
+          resolve(existing)
+        }
+      })
+    } else {
+      const sql = 'INSERT INTO plugin_config (name, settings) VALUES (?, ?)'
+      db.run(sql, [name, JSON.stringify(settings)], function(err) {
+        if (err) reject(err)
+        else {
+          const config = new PluginConfig(name, settings)
+          config.id = this.lastID
+          resolve(config)
+        }
+      })
+    }
   })
 }

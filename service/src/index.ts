@@ -49,6 +49,8 @@ import {
   updateUserVisitTime,
   upsertKey,
   verifyUser,
+  getPluginConfigs,
+  updatePluginConfig,
 } from './storage/sqlite'
 import { authLimiter, limiter } from './middleware/limiter'
 import { hasAnyRole, isEmail, isNotEmptyString } from './utils/is'
@@ -646,7 +648,7 @@ router.post('/chat-clear', auth, async (req, res) => {
 router.post('/chat-process', [auth, limiter], async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
-  let { roomId, uuid, regenerate, prompt, images = [], options = {}, extra_body, systemMessage, temperature, top_p, draw } = req.body as RequestProps
+  let { roomId, uuid, regenerate, prompt, images = [], options = {}, extra_body, systemMessage, temperature, top_p, draw, autoContinue } = req.body as RequestProps
   const userId = req.headers.userId as string
   const room = await getChatRoom(userId, roomId)
   if (room == null)
@@ -699,6 +701,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
           id: chat.id,
           conversationId: chat.conversationId,
           text: chat.text,
+          ...(chat.toolStatus ? { toolStatus: chat.toolStatus } : {}),
           // Stream incremental reasoning content if provided
           ...(chat.thinking ? { thinking: chat.thinking } : {}),
           detail: {
@@ -725,6 +728,7 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       tryCount: 0,
       room,
       draw,
+      autoContinue,
     })
       
     // return the whole response including usage
@@ -1347,6 +1351,28 @@ router.post('/statistics/by-day', auth, async (req, res) => {
   }
   catch (error) {
     res.send(error)
+  }
+})
+
+router.post('/plugin/update', auth, rootAuth, async (req, res) => {
+  try {
+    const { name, settings } = req.body
+    if (!name) {
+      throw new Error('Name is required')
+    }
+    const config = await updatePluginConfig(name, settings)
+    res.send({ status: 'Success', message: '', data: config })
+  } catch (error) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+router.get('/plugin/list', auth, rootAuth, async (req, res) => {
+  try {
+    const configs = await getPluginConfigs()
+    res.send({ status: 'Success', message: '', data: configs })
+  } catch (error) {
+    res.send({ status: 'Fail', message: error.message, data: null })
   }
 })
 

@@ -18,6 +18,7 @@ interface Props {
   loading?: boolean
   thinking?: string
   thinkingExpanded?: boolean
+  toolStatus?: string
   responseCount?: number
   usage?: {
     completion_tokens: number
@@ -182,6 +183,10 @@ async function handlePreviousResponse(next: number) {
           :expanded="props.thinkingExpanded"
           :loading="props.loading"
         />
+        <div v-if="!inversion && props.toolStatus" class="tool-status-chip">
+          <span class="tool-status-dot" />
+          <span>{{ props.toolStatus }}</span>
+        </div>
         <TextComponent
           ref="textRef"
           :inversion="inversion"
@@ -235,8 +240,40 @@ async function handlePreviousResponse(next: number) {
   transition: opacity var(--transition-fast);
 }
 
+.tool-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--surface-bubble-ai) 88%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.tool-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--brand-primary);
+  animation: tool-status-pulse 1.2s ease-in-out infinite;
+}
+
 .message-row:hover .message-actions {
   opacity: 1;
+}
+
+@keyframes tool-status-pulse {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .message-action-btn {

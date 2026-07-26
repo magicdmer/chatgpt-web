@@ -14,6 +14,7 @@ import { hasAnyRole, isNotEmptyString } from '../utils/is'
 import type { ChatContext, ModelConfig } from '../types'
 import { getChatByMessageId } from '../storage/sqlite'
 import type { RequestOptions, ChatMessage } from './types'
+import { getToolsForOpenAI, getPluginByName } from './plugins'
 
 const { HttpsProxyAgent } = httpsProxyAgent
 
@@ -180,7 +181,7 @@ async function chatReplyProcess(options: RequestOptions) {
     }
 
     // 构造消息上下文
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: any }> = []
+    const messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: any; name?: string; tool_calls?: any[]; tool_call_id?: string }> = []
     if (isNotEmptyString(systemMsg)) messages.push({ role: 'system', content: systemMsg })
     if (lastContext?.parentMessageId) {
       let pid: string | undefined = lastContext.parentMessageId
@@ -215,95 +216,215 @@ async function chatReplyProcess(options: RequestOptions) {
     let reasoningFull = ''
     let lastThinkingLen = 0
 
-    let tools: any[] | undefined
+    const tools = getToolsForOpenAI()
     if (model.startsWith('gemini-') && model.includes('flash')) {
-      tools = [{
+      tools.push({
         type: 'function',
         function: {
-          name: 'googleSearch'
-        }
-      }]
+          name: 'googleSearch',
+          description: 'Search Google for up-to-date information.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+      })
     }
 
-    const stream = await client.chat.completions.create({
-      model,
-      messages,
-      temperature,
-      top_p,
-      stream: true,
-      ...(tools ? { tools } : {}),
-      ...(options.extra_body ? { extra_body: options.extra_body } : {}),
-    }, { signal: abort.signal, timeout: timeoutMs })
+    let maxTurns = 5
+    let finalResponseSent = false
 
-    for await (const chunk of stream) {
-      const choice = chunk.choices?.[0]
-      const delta = choice?.delta?.content ?? ''
-      if (delta) rawText += delta
-      finishReason = choice?.finish_reason ?? null
+    while (maxTurns-- > 0 && !finalResponseSent) {
+      finishReason = null
+      let toolCalls: { index: number, id: string, type: 'function', function: { name: string, arguments: string } }[] = []
+      let isToolCall = false
+      let turnText = ''
 
-      // Prefer dedicated reasoning content if provided by the SDK/model
-      const reasoningChunk = (choice?.delta as any)?.reasoning_content ?? ''
-      if (reasoningChunk) reasoningFull += reasoningChunk
-      // Some providers may only send final message.reasoning_content on the last chunk
-      const reasoningMessage = (choice as any)?.message?.reasoning_content ?? ''
-      if (!reasoningChunk && reasoningMessage)
-        reasoningFull = reasoningMessage
+      const stream = await client.chat.completions.create({
+        model,
+        messages: messages as any,
+        temperature,
+        top_p,
+        stream: true,
+        ...(tools && tools.length > 0 ? { tools } : {}),
+        ...(options.extra_body ? { extra_body: options.extra_body } : {}),
+      }, { signal: abort.signal, timeout: timeoutMs })
 
-      // Extract reasoning content enclosed within <think>...</think> as a fallback
-      let thinkingText = ''
-      if (!reasoningChunk) {
-        const thinkOpen = rawText.indexOf('<think>')
-        const thinkClose = rawText.indexOf('</think>')
-        if (thinkOpen !== -1) {
-          if (thinkClose !== -1 && thinkClose > thinkOpen) {
-            thinkingText = rawText.substring(thinkOpen + 7, thinkClose)
-          }
-          else {
-            thinkingText = rawText.substring(thinkOpen + 7)
+      for await (const chunk of stream) {
+        const choice = chunk.choices?.[0]
+        const delta = choice?.delta as any
+
+        if (delta?.tool_calls) {
+          isToolCall = true
+          for (const tc of delta.tool_calls) {
+            const index = tc.index
+            if (!toolCalls[index]) {
+              toolCalls[index] = {
+                index,
+                id: tc.id,
+                type: 'function',
+                function: { name: tc.function?.name ?? '', arguments: tc.function?.arguments ?? '' }
+              }
+            } else {
+              if (tc.function?.name) toolCalls[index].function.name += tc.function.name
+              if (tc.function?.arguments) toolCalls[index].function.arguments += tc.function.arguments
+            }
           }
         }
-      }
 
-      // Compute final visible text by removing <think>...</think> block (or truncating after <think> if not closed yet)
-      let finalText: string
-      if (!reasoningChunk) {
-        const thinkOpen = rawText.indexOf('<think>')
-        const thinkClose = rawText.indexOf('</think>')
-        if (thinkOpen !== -1) {
-          if (thinkClose !== -1 && thinkClose > thinkOpen) {
-            finalText = rawText.slice(0, thinkOpen) + rawText.slice(thinkClose + 8)
+        const contentDelta = delta?.content ?? ''
+        if (contentDelta) {
+          rawText += contentDelta
+          turnText += contentDelta
+        }
+        finishReason = choice?.finish_reason ?? null
+
+        // Prefer dedicated reasoning content if provided by the SDK/model
+        const reasoningChunk = delta?.reasoning_content ?? ''
+        if (reasoningChunk) reasoningFull += reasoningChunk
+        // Some providers may only send final message.reasoning_content on the last chunk
+        const reasoningMessage = (choice as any)?.message?.reasoning_content ?? ''
+        if (!reasoningChunk && reasoningMessage)
+          reasoningFull = reasoningMessage
+
+        // Extract reasoning content enclosed within <think>...</think> as a fallback
+        let thinkingText = ''
+        if (!reasoningChunk) {
+          const thinkOpen = rawText.indexOf('<think>')
+          const thinkClose = rawText.indexOf('</think>')
+          if (thinkOpen !== -1) {
+            if (thinkClose !== -1 && thinkClose > thinkOpen) {
+              thinkingText = rawText.substring(thinkOpen + 7, thinkClose)
+            }
+            else {
+              thinkingText = rawText.substring(thinkOpen + 7)
+            }
+          }
+        }
+
+        // Compute final visible text by removing <think>...</think> block (or truncating after <think> if not closed yet)
+        let finalText: string
+        if (!reasoningChunk) {
+          const thinkOpen = rawText.indexOf('<think>')
+          const thinkClose = rawText.indexOf('</think>')
+          if (thinkOpen !== -1) {
+            if (thinkClose !== -1 && thinkClose > thinkOpen) {
+              finalText = rawText.slice(0, thinkOpen) + rawText.slice(thinkClose + 8)
+            }
+            else {
+              finalText = rawText.slice(0, thinkOpen)
+            }
           }
           else {
-            finalText = rawText.slice(0, thinkOpen)
+            finalText = rawText
           }
         }
         else {
+          // When reasoning is separate, visible content stays as-is
           finalText = rawText
         }
-      }
-      else {
-        // When reasoning is separate, visible content stays as-is
-        finalText = rawText
+
+        // Only send incremental delta of thinking content this turn
+        const thinkingDelta = reasoningChunk
+          ? reasoningChunk
+          : (reasoningMessage
+            ? reasoningMessage
+            : (thinkingText.length > lastThinkingLen ? thinkingText.substring(lastThinkingLen) : ''))
+        if (!reasoningChunk && thinkingText.length > lastThinkingLen)
+          lastThinkingLen = thinkingText.length
+
+        const partial: ChatMessage = {
+          id: chunk.id ?? crypto.randomUUID(),
+          conversationId,
+          role: 'assistant',
+          text: finalText,
+          thinking: thinkingDelta || undefined,
+          detail: { choices: [{ finish_reason: finishReason }] },
+        }
+        streamProcess?.(partial)
       }
 
-      // Only send incremental delta of thinking content this turn
-      const thinkingDelta = reasoningChunk
-        ? reasoningChunk
-        : (reasoningMessage
-          ? reasoningMessage
-          : (thinkingText.length > lastThinkingLen ? thinkingText.substring(lastThinkingLen) : ''))
-      if (!reasoningChunk && thinkingText.length > lastThinkingLen)
-        lastThinkingLen = thinkingText.length
+      if (isToolCall && toolCalls.length > 0) {
+        const validToolCalls = toolCalls.filter(Boolean)
+        messages.push({
+          role: 'assistant',
+          content: turnText || null,
+          tool_calls: validToolCalls.map(tc => ({
+            id: tc.id,
+            type: 'function',
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments
+            }
+          }))
+        })
 
-      const partial: ChatMessage = {
-        id: chunk.id,
-        conversationId,
-        role: 'assistant',
-        text: finalText,
-        thinking: thinkingDelta || undefined,
-        detail: { choices: [{ finish_reason: finishReason }] },
+        for (const tc of validToolCalls) {
+          const pluginName = tc.function.name
+          const shouldExposeToolResult = pluginName === 'generate_image'
+
+          streamProcess?.({
+            id: messageId,
+            conversationId,
+            role: 'assistant',
+            text: rawText,
+            toolStatus: `正在调用插件 [${pluginName}]...`,
+            detail: { choices: [{ finish_reason: null }] }
+          })
+
+          const plugin = getPluginByName(pluginName)
+          let result = ''
+          if (plugin) {
+            try {
+              const args = JSON.parse(tc.function.arguments)
+              const context = {
+                chatModel,
+                key,
+                mgApiKey: process.env.MG_API_KEY,
+                mgApiUrl: process.env.MG_API_BASE_URL,
+              }
+              result = await plugin.execute(args, context)
+            } catch (err: any) {
+              result = `Error executing plugin: ${err.message}`
+            }
+          } else {
+            result = `Plugin ${pluginName} not found.`
+          }
+
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            name: pluginName,
+            content: result
+          })
+
+          if (shouldExposeToolResult && result)
+            rawText += `${result}\n\n`
+
+          if (shouldExposeToolResult && result)
+            turnText += `${result}\n\n`
+
+          streamProcess?.({
+            id: messageId,
+            conversationId,
+            role: 'assistant',
+            text: rawText,
+            toolStatus: undefined,
+            detail: { choices: [{ finish_reason: null }] }
+          })
+        }
+      } else if (options.autoContinue && finishReason === 'length' && maxTurns > 0) {
+        messages.push({
+          role: 'assistant',
+          content: turnText,
+        })
+        messages.push({
+          role: 'user',
+          content: 'Continue exactly where you left off. Do not repeat any previous content.',
+        })
+      } else {
+        finalResponseSent = true
       }
-      streamProcess?.(partial)
     }
 
     // usage 可能在最终块返回，若没有则由路由层估算兜底

@@ -270,3 +270,13 @@ export class KeyConfig {
     this.remark = remark
   }
 }
+
+export class PluginConfig {
+  id?: number
+  name: string
+  settings: Record<string, any>
+  constructor(name: string, settings: Record<string, any> = {}) {
+    this.name = name
+    this.settings = settings
+  }
+}

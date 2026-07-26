@@ -252,14 +252,47 @@ async function onConversation() {
   scrollToBottom()
 
   try {
-    let lastText = ''
     let lastThinking = ''
     const fetchChatAPIOnce = async () => {
+      let streamBuffer = ''
+      let parsedLength = 0
       const extraBody = buildExtraBody(currentChatModel.value, usingThinking.value)
       const stripImageFromMarkdown = (s: string) => String(s || '')
         .replace(/\!\[[^\]]*\]\([^)]+\)/g, '')
         .replace(/<img[^>]*>/gi, '')
         .trim()
+      const applyStreamChunk = (data: any) => {
+        const usage: Chat.Chat['usage'] | undefined = (data.detail && data.detail.usage)
+          ? {
+              completion_tokens: Number(data.detail.usage.completion_tokens ?? 0),
+              prompt_tokens: Number(data.detail.usage.prompt_tokens ?? 0),
+              total_tokens: Number(data.detail.usage.total_tokens ?? 0),
+              estimated: Boolean(data.detail.usage.estimated),
+            }
+          : undefined
+        const thinkingPart = (data.thinking ?? (data.detail && (data.detail.thinking ?? undefined)))
+        if (typeof thinkingPart === 'string')
+          lastThinking += thinkingPart
+        updateChat(
+          +uuid,
+          dataSources.value.length - 1,
+          {
+            dateTime: Date.now(),
+            text: data.text ?? '',
+            inversion: false,
+            error: false,
+            loading: true,
+            thinking: lastThinking,
+            thinkingExpanded: false,
+            toolStatus: data.toolStatus,
+            conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
+            requestOptions: { prompt: message, options: { ...options }, images: imagesToSend.length > 0 ? imagesToSend : undefined },
+            usage,
+          },
+        )
+
+        scrollToBottomIfAtBottom()
+      }
       // 如有图片附件：编辑模式仍走图片编辑；否则统一走 chat-process 并携带图片
       if (imagesToSend.length > 0 && isEditMode.value) {
         const editRes = await fetchImageEdit<{ markdown?: string; url?: string; urls?: string[] }>({
@@ -298,60 +331,40 @@ async function onConversation() {
         options,
         extra_body: extraBody,
         draw: appStore.advancedMode ? usingDraw.value : false,
+        autoContinue: openLongReply,
         signal: ctrl.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
           const { responseText } = xhr
-          // Always process the final line
-          const lastIndex = responseText.lastIndexOf('\n', responseText.length - 2)
-          let chunk = responseText
-          if (lastIndex !== -1)
-            chunk = responseText.substring(lastIndex)
-          try {
-            const data = JSON.parse(chunk)
-            const usage = (data.detail && data.detail.usage)
-              ? {
-                  completion_tokens: data.detail.usage.completion_tokens || null,
-                  prompt_tokens: data.detail.usage.prompt_tokens || null,
-                  total_tokens: data.detail.usage.total_tokens || null,
-                  estimated: data.detail.usage.estimated || null,
-                }
-              : undefined
-            const thinkingPart = (data.thinking ?? (data.detail && (data.detail.thinking ?? undefined)))
-            if (typeof thinkingPart === 'string')
-              lastThinking += thinkingPart
-            updateChat(
-              +uuid,
-              dataSources.value.length - 1,
-              {
-                dateTime: Date.now(),
-                text: lastText + (data.text ?? ''),
-                inversion: false,
-                error: false,
-                loading: true,
-                thinking: lastThinking,
-                thinkingExpanded: false,
-                conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
-                requestOptions: { prompt: message, options: { ...options }, images: imagesToSend.length > 0 ? imagesToSend : undefined },
-                usage,
-              },
-            )
-
-            if (openLongReply && data.detail && data.detail.choices.length > 0 && data.detail.choices[0].finish_reason === 'length') {
-              options.parentMessageId = data.id
-              lastText = data.text
-              message = ''
-              return fetchChatAPIOnce()
+          const incoming = responseText.slice(parsedLength)
+          parsedLength = responseText.length
+          streamBuffer += incoming
+          const lines = streamBuffer.split('\n')
+          streamBuffer = lines.pop() ?? ''
+          for (const line of lines) {
+            if (!line.trim())
+              continue
+            try {
+              const data = JSON.parse(line)
+              applyStreamChunk(data)
             }
-
-            scrollToBottomIfAtBottom()
-          }
-          catch (error) {
-            //
+            catch (error) {
+              //
+            }
           }
         },
       })
-      updateChatSome(+uuid, dataSources.value.length - 1, { loading: false, thinkingExpanded: false })
+      if (streamBuffer.trim()) {
+        try {
+          const data = JSON.parse(streamBuffer)
+          streamBuffer = ''
+          applyStreamChunk(data)
+        }
+        catch (error) {
+          //
+        }
+      }
+      updateChatSome(+uuid, dataSources.value.length - 1, { loading: false, thinkingExpanded: false, toolStatus: undefined })
     }
 
     await fetchChatAPIOnce()
@@ -444,15 +457,48 @@ async function onRegenerate(index: number) {
   )
 
   try {
-    let lastText = ''
     let lastThinking = ''
     const fetchChatAPIOnce = async () => {
+      let streamBuffer = ''
+      let parsedLength = 0
       const extraBody = buildExtraBody(currentChatModel.value, usingThinking.value)
       const originalImages: string[] = (dataSources.value[index]?.requestOptions as any)?.images || []
       const stripImageFromMarkdown = (s: string) => String(s || '')
         .replace(/\!\[[^\]]*\]\([^)]+\)/g, '')
         .replace(/<img[^>]*>/gi, '')
         .trim()
+      const applyStreamChunk = (data: any) => {
+        const usage: Chat.Chat['usage'] | undefined = (data.detail && data.detail.usage)
+          ? {
+              completion_tokens: Number(data.detail.usage.completion_tokens ?? 0),
+              prompt_tokens: Number(data.detail.usage.prompt_tokens ?? 0),
+              total_tokens: Number(data.detail.usage.total_tokens ?? 0),
+              estimated: Boolean(data.detail.usage.estimated),
+            }
+          : undefined
+        const thinkingPart = (data.thinking ?? (data.detail && (data.detail.thinking ?? undefined)))
+        if (typeof thinkingPart === 'string')
+          lastThinking += thinkingPart
+        updateChat(
+          +uuid,
+          index,
+          {
+            dateTime: Date.now(),
+            text: data.text ?? '',
+            inversion: false,
+            responseCount,
+            error: false,
+            loading: true,
+            thinking: lastThinking,
+            thinkingExpanded: false,
+            toolStatus: data.toolStatus,
+            conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
+            requestOptions: { prompt: message, options: { ...options }, images: originalImages.length > 0 ? originalImages : undefined },
+            usage,
+          },
+        )
+
+      }
       await fetchChatAPIProcess<Chat.ConversationResponse>({
         roomId: +uuid,
         uuid: chatUuid || Date.now(),
@@ -462,59 +508,40 @@ async function onRegenerate(index: number) {
         options,
         extra_body: extraBody,
         draw: appStore.advancedMode ? usingDraw.value : false,
+        autoContinue: openLongReply,
         signal: ctrl.signal,
         onDownloadProgress: ({ event }) => {
           const xhr = event.target
           const { responseText } = xhr
-          // Always process the final line
-          const lastIndex = responseText.lastIndexOf('\n', responseText.length - 2)
-          let chunk = responseText
-          if (lastIndex !== -1)
-            chunk = responseText.substring(lastIndex)
-          try {
-            const data = JSON.parse(chunk)
-            const usage = (data.detail && data.detail.usage)
-              ? {
-                  completion_tokens: data.detail.usage.completion_tokens || null,
-                  prompt_tokens: data.detail.usage.prompt_tokens || null,
-                  total_tokens: data.detail.usage.total_tokens || null,
-                  estimated: data.detail.usage.estimated || null,
-                }
-              : undefined
-            const thinkingPart = (data.thinking ?? (data.detail && (data.detail.thinking ?? undefined)))
-            if (typeof thinkingPart === 'string')
-              lastThinking += thinkingPart
-            updateChat(
-              +uuid,
-              index,
-              {
-                dateTime: Date.now(),
-                text: lastText + (data.text ?? ''),
-                inversion: false,
-                responseCount,
-                error: false,
-                loading: true,
-                thinking: lastThinking,
-                thinkingExpanded: false,
-                conversationOptions: { conversationId: data.conversationId, parentMessageId: data.id },
-                requestOptions: { prompt: message, options: { ...options }, images: originalImages.length > 0 ? originalImages : undefined },
-                usage,
-              },
-            )
-
-            if (openLongReply && data.detail && data.detail.choices.length > 0 && data.detail.choices[0].finish_reason === 'length') {
-              options.parentMessageId = data.id
-              lastText = data.text
-              message = ''
-              return fetchChatAPIOnce()
+          const incoming = responseText.slice(parsedLength)
+          parsedLength = responseText.length
+          streamBuffer += incoming
+          const lines = streamBuffer.split('\n')
+          streamBuffer = lines.pop() ?? ''
+          for (const line of lines) {
+            if (!line.trim())
+              continue
+            try {
+              const data = JSON.parse(line)
+              applyStreamChunk(data)
             }
-          }
-          catch (error) {
-            //
+            catch (error) {
+              //
+            }
           }
         },
       })
-      updateChatSome(+uuid, index, { loading: false, thinkingExpanded: false })
+      if (streamBuffer.trim()) {
+        try {
+          const data = JSON.parse(streamBuffer)
+          streamBuffer = ''
+          applyStreamChunk(data)
+        }
+        catch (error) {
+          //
+        }
+      }
+      updateChatSome(+uuid, index, { loading: false, thinkingExpanded: false, toolStatus: undefined })
     }
     await fetchChatAPIOnce()
   }
@@ -907,6 +934,7 @@ onUnmounted(() => {
                   :inversion="item.inversion"
                   :thinking="item.thinking"
                   :thinking-expanded="item.thinkingExpanded"
+                  :tool-status="item.toolStatus"
                   :response-count="item.responseCount"
                   :usage="item && item.usage || undefined"
                   :error="item.error"
@@ -1257,4 +1285,3 @@ onUnmounted(() => {
   to { opacity: 1; }
 }
 </style>
-

@@ -12,6 +12,7 @@ export interface RequestProps {
   temperature?: number
   top_p?: number
   draw?: boolean
+  autoContinue?: boolean
 }
 
 export interface ChatContext {

@@ -8,6 +8,7 @@ export interface ChatMessage {
   text: string
   // Optional incremental reasoning content for streaming updates
   thinking?: string
+  toolStatus?: string
   detail?: {
     choices: Array<{ finish_reason?: string | null }>
     usage?: {
@@ -35,6 +36,7 @@ export interface RequestOptions {
   tryCount: number
   room: ChatRoom
   draw?: boolean
+  autoContinue?: boolean
 }
 
 export interface BalanceResponse {
