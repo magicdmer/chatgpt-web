@@ -1,238 +1,203 @@
 # ChatGPT Web 工程架构说明
 
-本文件梳理当前仓库的整体架构、关键模块、数据与请求流转、配置与部署方式，以及扩展改造的建议与注意事项，便于后续进行变更与二次开发。
+本文档描述当前仓库的运行架构、核心请求链路、关键定制和部署方式，供功能开发、问题排查与后续维护使用。文档以当前实现为准；修改关键行为时，应同步更新对应章节。
 
-## 总览
+## 1. 架构概览
 
-- 前端：`Vue 3 + Vite + TypeScript + Naive UI + Pinia + Vue Router + i18n`
-- 后端：`Node.js (Express + TypeScript)`，内置鉴权、限流与审计，基于 `sqlite3` 持久化
-- 接口路由：后端同时挂载在根路径 `''` 与 `/api`，前端开发环境通过 Vite 代理 `'/api' -> 后端`
-- 构建与部署：支持 Docker 镜像多阶段构建、Docker Compose、Kubernetes 部署
-- 配置：`.env`（前端）、`service/.env.example`（后端示例）；后端支持大量环境变量，前端通过 `VITE_*` 变量配置
-- 工具：使用`fnm`来管理nodejs环境，该工程使用node18.x
+- 前端：`Vue 3 + Vite + TypeScript + Naive UI + Pinia + Vue Router + vue-i18n`
+- 后端：`Node.js + Express + TypeScript`
+- 数据存储：服务端使用 `sqlite3`；前端聊天缓存使用 `IndexedDB`（`localforage`）
+- 模型接入：通过 OpenAI 兼容接口连接不同模型服务，可配置自定义 `baseURL`，通常由 `new-api` 等中转服务统一接入
+- 主要能力：多会话聊天、上下文续聊、流式响应、思考内容、图片上传与图文对话、图片生成、用户和密钥管理、限流、审核及使用量统计
+- 部署方式：支持 Docker、Docker Compose 和 Kubernetes，默认服务端口为 `3002`
+- 运行环境：项目以 Node.js 18 为主要构建和运行环境，可使用 `fnm` 管理 Node.js 版本
 
-- 图片能力：支持图片上传、图文对话（Vision）与图片编辑（Edit），统一走后端路由与 OpenAI 兼容接口
+后端路由同时挂载在根路径和 `/api`。开发环境由 Vite 将 `/api` 与 `/uploads` 代理到后端；生产环境通常由同一个 Express 服务同时提供前端静态文件和 API。
 
-该工程通过new-api服务，使用统一的OpenAI接口方式调用不同AI服务商提供的各种模型服务，所以我们只需要关注OpenAI的接口规范即可。
+## 2. 目录结构
 
-## 目录结构（关键部分）
-
-```
+```text
 根目录
-├─ src/                 # 前端源代码
-│  ├─ main.ts           # 应用启动入口（注册资源、i18n、Pinia、路由）
-│  ├─ App.vue           # 根组件（Naive UI ConfigProvider 包裹 RouterView）
-│  ├─ api/              # 前端接口封装（与后端 REST 对应）
-│  ├─ router/           # 路由与权限守卫（hash 模式）
-│  ├─ store/            # Pinia 状态（chat、auth、setting 等模块）
-│  ├─ views/chat/       # 聊天主界面与布局（Layout、Sider、Header、消息列表等）
-│  ├─ utils/request/    # Axios 包装与拦截器（读取 `VITE_GLOB_API_URL`）
-│  ├─ locales/          # 多语言文案
-│  └─ components/       # 通用组件与设置面板
-│
-├─ service/             # 后端服务代码
-│  ├─ src/index.ts      # Express 路由与业务入口（挂载全部 REST API）
-│  ├─ src/middleware/   # 鉴权、限流等中间件（`auth`, `rootAuth`, `limiter`）
-│  ├─ src/chatgpt/      # ChatGPT 调用逻辑（代理、敏感词、会话上下文等）
-│  ├─ src/storage/      # sqlite 持久化与配置缓存（建表、CRUD、Config/Key 管理）
-│  ├─ src/utils/        # 工具（邮件、审核、token 计算等）
-│  └─ .env.example      # 后端环境变量示例
-│
-├─ Dockerfile           # 多阶段构建（前端+后端），最终镜像运行 `pnpm run prod`
-├─ docker-compose/      # Compose 示例与 nginx 配置
-├─ kubernetes/          # K8S 部署示例
-├─ vite.config.ts       # 前端开发代理与 PWA 配置
-├─ package.json         # 前端脚本与依赖
- └─ README*.md           # 使用说明（中/英）
+├─ src/
+│  ├─ api/                    # REST API 封装
+│  ├─ components/             # 通用组件和设置面板
+│  ├─ locales/                # 国际化文案
+│  ├─ router/                 # 路由与权限守卫
+│  ├─ store/                  # Pinia 状态与前端持久化
+│  ├─ utils/                  # 请求、模型和通用工具
+│  ├─ views/chat/             # 聊天页面、消息列表和侧边栏
+│  ├─ App.vue                 # 根组件
+│  └─ main.ts                 # 前端启动入口
+├─ service/
+│  ├─ src/chatgpt/            # 模型调用、流式处理和上下文组装
+│  ├─ src/middleware/         # 鉴权与限流中间件
+│  ├─ src/storage/            # SQLite、配置和密钥管理
+│  ├─ src/utils/              # 邮件、审核和 Token 等工具
+│  ├─ src/index.ts            # Express 入口与 REST 路由
+│  └─ .env.example            # 后端环境变量示例
+├─ docker-compose/            # Compose 与 Nginx 示例
+├─ kubernetes/                # Kubernetes 部署示例
+├─ Dockerfile                 # 前后端多阶段构建
+├─ vite.config.ts             # Vite、PWA 与开发代理配置
+└─ package.json               # 前端依赖和脚本
 ```
 
-运行时目录：
-- `service/uploads/` 用于存储上传文件（静态服务目录，通过前端访问 `'/uploads/...'`）。
+主要运行时数据：
 
-## 前端架构
+- `data/chatgpt.db`：SQLite 数据库；容器部署时映射到 `/app/data`
+- `service/uploads/`：本地开发上传目录；容器部署时使用 `/app/uploads`
+- `chatStorage`：浏览器 IndexedDB 中的聊天缓存
 
-- 启动流程：
-  - `src/main.ts` 创建 `App`，依次执行 `setupAssets`、`setupScrollbarStyle`、`setupStore(app)`、`setupI18n(app)`、`await setupRouter(app)`，最后 `mount('#app')`。
-- 路由：
-  - `src/router/index.ts` 使用 `createWebHashHistory`，根路由 `ChatLayout`，子路由 `/chat/:uuid?`，异常页路由 `/404`、`/500`。
-  - `src/router/permission.ts` 在 `beforeEach` 中拉取会话，处理 `token` 与用户信息，异常时重定向到 `500`。
-- 状态管理（Pinia）：
-  - `src/store/index.ts` 注册 `Pinia`；`src/store/modules/` 包含 `chat`, `auth`, `setting` 等模块。
-  - 典型如 `chat` 模块：维护房间列表与消息历史、上下文开关、模型选择，并调用 `api/`。
-  - **大容量缓存优化**：为了解决生图（Base64）等大体积数据容易撑爆 `localStorage` 5MB 限制的问题，聊天核心数据（`chatStorage`）已由 `localStorage` 迁移至 **IndexedDB**（使用 `localforage` 库）。在 `src/main.ts` 初始化时，通过 `await useChatStore().initStore()` 异步预加载 IndexedDB 数据，之后将其转化为普通对象以避免 Vue Proxy 的克隆异常。
-- 接口调用：
-  - `src/utils/request/axios.ts` 设置 `baseURL = import.meta.env.VITE_GLOB_API_URL`，请求拦截自动附加 `Authorization`；响应拦截对非 `200` 抛错。
-  - `src/api/index.ts` 统一封装 REST 方法（房间 CRUD、聊天流程、用户与配置管理、审计与邮件等）。
-  - 流式响应与思考：聊天接口以服务端流方式返回增量内容，并在 `options.thinking`/`thinking` 字段回传“思考”片段；房间级开关通过 `/room-thinking` 路由控制。
-- UI 框架与布局：
-  - 使用 `naive-ui`，根组件 `App.vue` 通过 `NConfigProvider` 注入主题与语言；聊天页面由 `views/chat/layout` 布局（`Sider` + 内容区），移动端自适应。
-  - **极简无头像设计**：移除了传统的用户与 AI 头像（Avatar），精简了冗余按钮（如上述图片编辑），全面采用现代极简的 Indigo-Violet 视觉风格。
-- i18n：
-  - `src/locales/*` 提供多语言文案，设置面板、统计、权限等文案较为完整。
-- 开发代理：
-  - `vite.config.ts` 在开发模式下将 `'/api'` 代理到 `viteEnv.VITE_APP_API_BASE_URL` 并重写为根路径（后端同时在 `''` 与 `/api` 挂载）。
-  - 同时将 `'/uploads'` 代理到后端，便于前端直接访问本地静态上传文件。
+## 3. 前端架构
 
-### 前端与后端的接口映射（示例）
+### 3.1 启动、路由与状态
 
-- 聊天流程：
-  - `POST /chat-process`（开始或继续对话，支持 `systemMessage`、`temperature`、`top_p`）
-  - `POST /chat-abort`（中止响应）
-  - `GET /chat-response-history`（按索引回溯历史响应）
-  - `GET /chat-history?roomId=...&lastId=...`（分页拉取聊天记录）
-- 房间管理：`/room-create`、`/room-rename`、`/room-prompt`、`/room-context`、`/room-chatmodel`、`/room-delete`、`/chatrooms`
-  - 思考开关：`/room-thinking`（开启/关闭当前房间的“思考”内容回传）
-- 用户与会话：`/session`、`/user-login`、`/user-register`、`/user-info`、`/users`、`/user-status`、`/user-edit`、`/verify`、`/verifyadmin`
-- 配置与运维：`/setting-base`、`/setting-site`、`/setting-mail`、`/mail-test`、`/setting-audit`、`/audit-test`、`/setting-keys`、`/setting-key-status`、`/setting-key-upsert`、`/statistics/by-day`
+- `src/main.ts` 初始化资源、Pinia、i18n 和路由，并在挂载应用前调用 `useChatStore().initStore()` 恢复聊天缓存。
+- `src/router/index.ts` 使用 Hash 路由。聊天页面位于 `/chat/:uuid?`，并提供 `/404`、`/500` 异常页。
+- `src/router/permission.ts` 在路由进入前加载会话信息，处理 Token、用户状态和异常跳转。
+- `src/store/modules/chat/` 管理房间、消息、当前模型、上下文开关、思考开关和生成状态。
 
-上传与图片相关：
-- `POST /upload-image`（单文件上传，返回可访问的静态地址）
-- `POST /upload-images`（多文件上传，返回静态地址数组）
-- `POST /chat-process`（图文对话：文本 + 多图片，通过 `images: string[]` 携带，返回文本结果）
-- `POST /image-edit`（图片编辑/以图生图：支持可选 `mask`，返回图片 URL/Markdown）
+聊天数据使用 `localforage` 写入 IndexedDB，避免较长对话或大体积图片内容超出 `localStorage` 容量。写入前会转为普通 JSON 对象，避免 Vue Proxy 导致结构化克隆失败。
 
-> 注意：部分接口需要 `root` 管理员权限（见后端 `rootAuth` 中间件）。
+### 3.2 请求与界面
 
-会话返回约定（/session）：
-- `chatModels`：基于管理员在各密钥上勾选的允许模型的并集生成，显示为纯模型名（不再追加“出现次数”的后缀）。
-- `allChatModels`：来自各密钥已持久化的“可用模型”并集；若并集为空，则回退为静态内置列表。
-- 方法为 `POST /session`，未实现 `GET /session`。
+- `src/api/index.ts` 集中封装聊天、房间、用户、密钥、配置和统计接口。
+- `src/utils/request/axios.ts` 读取 `VITE_GLOB_API_URL` 作为基础地址，并自动附加 `Authorization` 请求头。
+- `src/views/chat/index.vue` 负责消息提交、流式增量更新、图片附件、重新生成、中止请求和历史图片回填。
+- 页面使用 Naive UI，聊天布局由侧边栏、顶部区域、消息列表和输入区组成，并适配移动端。
+- 传统用户/助手头像和部分冗余操作入口已移除，界面采用 Indigo-Violet 视觉风格。
 
-### 密钥管理与模型缓存（Keys.vue 行为说明）
+## 4. 后端架构
 
-- 模型来源与初始化：
-  - 内置模型列表来自 `authStore.session.allChatModels`，用于首次编辑或缓存缺失时的回退。
-  - 打开“编辑密钥”弹窗时，优先从本地缓存读取该密钥的模型列表；未命中再回退到内置列表。
-- 刷新与缓存写入：
-  - 通过 `fetchOpenAIModels({ key, apiBaseUrl })` 拉取模型，成功后覆盖下拉选项并过滤现有选中值，仅保留仍存在于新列表的模型。
-  - 刷新后将模型列表写入缓存，命名空间键为 `"<normalizedBaseUrl>__<apiKey>"`：
-    - 规范化规则：去掉首尾空格，并移除 `baseUrl` 末尾斜杠（避免 `.../v1` 与 `.../v1/` 不一致）。
-    - 当 `baseUrl` 为空时使用占位符 `__default_base__`。
-- 缓存读取与兼容：
-  - 读取时按上述命名空间键获取；若未命中，同时存在旧版本的全局数组缓存，则回退到 `__legacy__`。
-  - 缓存存储采用 `ss`（本地 `localStorage`，`expire: null`），键名为 `modelsStorage`。
-- 交互与体验：
-  - 刷新按钮在拉取期间显示纯 CSS 旋转圆环，并保证最短显示时长 `400ms`，避免闪烁；按钮在加载时居中显示动画。
-- 注意事项：
-  - 不同的 `API Key` 与 `Base URL` 组合拥有各自独立的缓存；统一的 `baseUrl` 规范化可避免因尾斜杠或空格导致的缓存未命中。
-  - 如需更细粒度的命名空间策略（例如仅按域名或包含路径查询），可在 `buildModelsNamespace` 中扩展规范化逻辑。
+### 4.1 服务入口与中间件
 
-## 后端架构
+`service/src/index.ts` 创建 Express 应用，注册 JSON 解析、CORS、静态文件、上传目录和业务路由。主要中间件包括：
 
-- 应用入口：
-  - `service/src/index.ts` 初始化 `express`，注册静态目录 `public`，全局 `JSON` 解析与 CORS 头，构建主路由 `router` 并挂载到 `''` 与 `/api`（便于代理与直连）。
-  - 注册上传静态目录与路由：`/uploads` 与 `/api/uploads` 指向 `service/uploads`（`service/src/index.ts:86-99`）。
-- 中间件：
-  - `auth`：基于 `JWT` 与数据库用户状态校验，`AUTH_SECRET_KEY` 存在时强制认证，否则给予“伪 userId”以便无登录使用。
-  - `rootAuth`：仅管理员可访问的配置/运维接口；验证 `roles` 包含 `Admin`。
-  - `limiter`、`authLimiter`：限流防刷。
-- ChatGPT 调用：
-  - `service/src/chatgpt/index.ts` 使用官方 `openai` SDK，支持 `SocksProxyAgent`/`HttpsProxyAgent` 与自定义 `baseURL`；
-  - 图片生成通过自建 `new-api` 中转服务，返回 `url` 并在前端展示；
-  - 流式输出：对话以流式推送增量 `content`，并在检测到“思考”内容时增量回传 `thinking` 片段（Gemini Thinking 等模型受控于房间级开关）；
-  - 维护 `conversationId`/`parentMessageId` 上下文，通过 `sqlite` 记录消息与 `usage`（`thinking` 内容保存在 `chat.options` 中）；
-- 支持第三方文本审核（默认 `baidu`），可配置请求/响应审核维度。
-  - 密钥选择：对每次聊天请求，先按当前用户角色、密钥状态（非 `Disabled`）与房间/聊天选择的模型过滤可用密钥集合，然后在集合中随机选择一个未锁定的密钥；同一密钥使用后会短暂锁定（约 20 秒），若全部锁定会等待最多约 3 秒后重试。
-- 存储层：
-  - `service/src/storage/sqlite.ts` 使用 `sqlite3`，启动时建表：`chat`、`chat_room`、`user`、`config`、`chat_usage`、`key_config`；数据库文件位于 `./data/chatgpt.db`。
-  - 业务方法覆盖：房间与聊天 CRUD、用户管理与统计、配置与 API Key 管理等。
-  - 字段补充：`chat_room` 增加 `usingThinking`（房间级“思考”开关）；`chat` 的“思考”内容以 JSON 形式存于 `options.thinking`。
-- 配置缓存：
-  - `service/src/storage/config.ts` 负责从 DB 或环境变量生成 `Config`，并维护内存缓存与过期；同时提供 `getApiKeys()` 与 Key 的筛选逻辑（角色/模型）。
+- `auth`：当 `AUTH_SECRET_KEY` 有值时校验 JWT 和用户状态；未启用登录时提供匿名使用所需的内部用户标识
+- `rootAuth`：限制管理员配置、用户管理和统计接口
+- `limiter`、`authLimiter`：限制普通请求与认证请求频率
 
-图片与上传能力（后端路由）：
-- 上传接口：单图 `/upload-image` 与多图 `/upload-images`，返回静态访问路径（`service/src/index.ts:160, 176`）。
-- 图文对话：`/chat-process`，请求体携带 `images: string[]`，后端转换为 `image_url` 与文本共同提交到模型。
-- 图片编辑：`/image-edit`，支持可选 `mask` 与多图片输入，返回图片 URL 或 Markdown（`service/src/index.ts:235, 253, 276`）。
-- 上传清理器：定时清理过期文件，清理间隔与保留时长可配置（`service/src/index.ts` 上传段落之后）。
+### 4.2 模型调用与上下文
 
-使用量追踪与估算（Token Usage）：
-- 统一抽取并持久化 `prompt_tokens`、`completion_tokens`、`total_tokens`（`service/src/index.ts:486-552`）。
-- 当返回缺失时，按模型映射进行估算：`mapModelForTokenizer` 与 `textTokens`（`service/src/index.ts:66-67, 706-720`）。
+- `service/src/chatgpt/index.ts` 使用 OpenAI SDK，并支持自定义 `baseURL`、HTTPS 代理和 SOCKS 代理。
+- 后端根据用户角色、密钥状态和所选模型筛选可用密钥，再从未锁定的候选密钥中选择一个执行请求。
+- 会话通过 `conversationId` 和 `parentMessageId` 形成消息链；启用上下文时，后端最多向前回溯 20 条关联消息组装请求。
+- 普通回复以流式增量返回；模型提供独立思考内容时，同时返回 `thinking`，最终写入消息的 `options`。
+- 模型未返回 Token Usage 时，服务端会按模型映射进行估算，并统一持久化 `prompt_tokens`、`completion_tokens` 和 `total_tokens`。
 
-### 路由与职责（节选）
+### 4.3 存储与上传
 
-- 聊天相关：`/chat-process`、`/chat-abort`、`/chat-history`、`/chat-response-history`、`/chat-clear`、`/chat-clear-all`、`/chat-delete`
-- 房间相关：`/room-create`、`/room-rename`、`/room-prompt`、`/room-context`、`/room-chatmodel`、`/room-delete`、`/chatrooms`
-- 用户/权限：`/session`、`/user-login`、`/user-register`、`/user-info`、`/users`、`/user-status`、`/user-edit`、`/verify`、`/verifyadmin`
-- 运维/配置：`/config`（root）、`/setting-base`、`/setting-site`、`/setting-mail`、`/mail-test`、`/setting-audit`、`/audit-test`、`/setting-keys`、`/setting-key-status`、`/setting-key-upsert`、`/statistics/by-day`
+- `service/src/storage/sqlite.ts` 管理 `chat`、`chat_room`、`user`、`config`、`chat_usage` 和 `key_config` 等表。
+- `service/src/storage/config.ts` 合并数据库配置与环境变量，并维护配置缓存和密钥筛选逻辑。
+- 图片上传支持单文件和多文件；上传结果以静态 URL 返回，聊天请求再将其转换为 OpenAI 兼容的 `image_url` 内容。
+- 上传清理器由保留时长和清理间隔控制，可通过环境变量关闭。
 
-## 环境变量与配置
+## 5. 核心运行链路
 
-- 前端：
-  - `VITE_GLOB_API_URL`：Axios 基础地址（生产/预览）。
-  - `VITE_APP_API_BASE_URL`：开发代理目标（`vite.config.ts`），以 `'/api'` 为前缀走代理。
-  - `VITE_GLOB_APP_PWA`：是否启用 PWA（`vite-plugin-pwa`）。
-- 后端（示例，详见 `service/.env.example` 与 README）：
-  - `API Key`：在后台“密钥管理”页面配置，不再使用 `ACCESS_TOKEN`。
-  - `OPENAI_API_BASE_URL`：自定义 OpenAI API 地址或 `new-api` 中转地址（与 `API Key` 搭配）。
-  - `AUTH_SECRET_KEY`：启用登录与 JWT 加密的盐，开启后端鉴权。
-  - `TIMEOUT_MS`、`MAX_REQUEST_PER_HOUR`：超时与限流相关。
-  - `SOCKS_PROXY_*` / `HTTPS_PROXY`：网络代理。
-  - `SITE_TITLE`、`REGISTER_ENABLED`、`REGISTER_REVIEW`、`REGISTER_MAILS`、`SITE_DOMAIN`：站点/注册配置。
-  - `SMTP_*`：邮件服务配置；`AUDIT_*`：文本审核配置。
-  - 上传相关：`UPLOAD_MAX_SIZE_MB`（单文件最大 MB）、`UPLOAD_CLEAN_INTERVAL`（清理间隔分钟，0 关闭）、`UPLOAD_SAVE_HOURS`（保留时长小时）。
+### 5.1 聊天请求
 
-## 构建与部署
+1. `src/views/chat/index.vue` 先将用户消息加入当前房间，创建请求控制器，并把房间标记为生成中。
+2. `src/api/index.ts` 调用 `/chat-process`；Axios 根据运行环境直连 API 或通过 Vite 代理转发。
+3. 后端完成鉴权、限流和房间校验，将用户消息及请求参数写入 SQLite。
+4. 后端按 `parentMessageId` 组装历史上下文；请求带有图片时，将当前文本和图片组成多模态用户消息。
+5. 模型响应按行增量写回，前端持续更新助手消息、思考内容、工具状态和 Token Usage。
+6. 响应结束后，后端保存助手回复及上下文标识；前端解除房间加载状态并持久化本地缓存。
 
-- Docker 多阶段：
-  - 第一阶段构建前端（安装依赖、`pnpm build`），第二阶段构建后端（`pnpm build`），最终镜像安装生产依赖并复制 `dist` 到 `/app/public` 与后端 `build`。
-  - 运行命令：`./replace-title.sh && pnpm run prod`，端口 `3002`。
-- Docker Compose：
-  - 默认映射 `3002:3002`，挂载 `./data:/app/data` 持久化 sqlite DB；通过 `environment` 传递后端环境变量。
-  - 额外挂载上传目录：`./uploads:/app/uploads`，保证上传文件持久化与静态访问。
-  - Nginx 代理可转发到 `app:3002`，并附带真实 IP 等头信息。
-- Kubernetes：
-  - `kubernetes/deploy.yaml` 提供 `Deployment` 与 `Service` 示例，端口 `3002`。
+中止请求由 `/chat-abort` 处理；重新生成会复用原用户消息，并保留此前回复供历史版本切换。
 
-## 数据与请求流转（简述）
+### 5.2 后台生成与新建会话
 
-1. 前端 `api/index.ts` 发起请求（附带 `Authorization`），`axios` 按 `VITE_GLOB_API_URL` 或开发代理转发。
-2. 后端 `index.ts` 通过 `auth/rootAuth/limiter` 等中间件校验后进入路由处理。
-3. 聊天请求进入 `chatgpt` 模块，按配置与上下文与代理设置调用 ChatGPT；响应边接收边推送（支持进度事件），并写入 `sqlite`（消息与使用量）。
-   同时，对于支持“思考”输出的模型，增量回传 `thinking` 片段并最终在 `options.thinking` 中保留完整内容。
-4. 前端 `store` 更新 UI 状态；`views/chat` 以消息列表渲染输出，支持回溯与中止。
-   - **后台生成与乐观更新**：切换会话时不会主动中断控制器（`onUnmounted` 时保留），确保原会话可在后台继续接收流式生成。为防止流式并发导致接口挂起，侧边栏的新建会话逻辑（`addHistory`）采用了**乐观更新（Optimistic UI）**：前端立即响应新建并切换路由，对应的 `/room-create` 请求放在后台异步执行，保证丝滑体验。
+- 切换或离开聊天页面时，已有请求控制器不会因组件卸载而自动中止，因此原房间可以继续接收生成结果。
+- 新建会话采用乐观更新：侧边栏立即创建并切换本地房间，`/room-create` 在后台完成持久化，避免接口响应阻塞界面交互。
+- 生成状态按房间维护；刷新页面时，只有不存在有效请求控制器的孤立加载状态会被清理。
 
-图片相关流转：
-- 上传：前端选择图片 -> 调用 `/upload-image(s)` -> 返回静态 URL -> 在输入区预览。
-- 图文对话：前端提交文本 + 图片 URL -> 调用 `/chat-process`（携带 `images`）-> 返回文本结果并写入房间消息。
-- 图片编辑：前端选择源图 + 开启编辑按钮 -> 调用 `/image-edit` -> 返回图片 URL/Markdown 并写入房间消息。
+### 5.3 图片上传与图文对话
 
-图文对话和图片编辑是通过是否开启编辑按钮来区分的。
+1. 用户选择或粘贴图片，前端调用 `/upload-image` 或 `/upload-images`。
+2. 后端保存文件并返回可访问 URL，前端在输入区展示附件预览。
+3. 用户发送消息时，前端通过 `/chat-process` 的 `images: string[]` 提交文本和图片。
+4. 后端将图片转换为模型可读取的 URL 或 Data URL，与文本一起提交，并将附件记录到聊天历史。
 
-> **⚠️ 关键定制说明（供后续开发与 AI 助手参考）：**
-> 为了保持界面极简并整合多模态能力，前端 `src/views/chat/index.vue` 中的图片编辑按钮已被**硬编码默认关闭**（`showEditButton = false`）。
-> 目前所有带有图片的对话请求都会直接回退并复用常规的图文对话（Vision）逻辑，统一走 `/chat-process` 接口。**请后续维护的 AI 与开发者切勿擅自修改或重新开启此按钮逻辑，以此设定为准。**
+> **关键定制：**`src/views/chat/index.vue` 中的图片编辑按钮通过 `showEditButton = false` 默认关闭。当前前端所有带图片的请求均按图文对话处理，统一走 `/chat-process`。后续维护时不要擅自重新开启该按钮。
 
-### 图文连续对话与改图的上下文策略（前端自动垫图机制）
+### 5.4 连续图文对话的自动垫图
 
-前端 `index.vue` 在处理多模态连续交互时，实现了一套极具智慧的“自动垫图”与“上下文隔离”策略。当用户在 `usingContext=true` 且本次未上传新图时，系统会根据回溯的图片来源执行不同的上下文处理：
+仅当房间启用上下文、当前请求没有新附件时，前端才会回填历史图片：
 
-1. **改图场景（断尾求生，清空文本历史）**：
-   - 触发条件：前端回溯找到了**上一轮 AI 生成的图片**（如 DALL-E 画的猫）。
-   - 执行逻辑：将该 AI 图片作为本次请求的附件，同时强制触发 `clearContextForEdit = true`，**清空文本上下文**（重置 `options={}`）。
-   - 目的：因为用户在“修改图片”（如指令“加个墨镜”），保留前面的长段文本会干扰生图或 Vision 模型的判断，清空文本可确保模型专注当前图片与当前指令。
+1. 优先向前查找最近一条包含 Markdown 或 HTML 图片的助手回复。找到后，将图片附加到当前请求，并将本次文本上下文重置为 `options={}`，使模型聚焦于图片和当前输入。
+2. 如果没有找到助手回复中的图片，则查找最近一条带图片附件的历史请求。找到后附加该图片，同时保留原有文本上下文，以支持围绕同一图片连续追问。
+3. 关闭房间上下文或当前请求已上传新图片时，不执行历史图片回填。
 
-2. **看图聊天场景（完整保留，连续追问）**：
-   - 触发条件：未找到 AI 生成的图，但找到了**用户之前上传的图片**（如一张菜单照片）。
-   - 执行逻辑：将该用户旧图作为本次请求的附件，**完整保留文本历史上下文**（不重置 `options`）。
-   - 目的：用户在围绕同一张图连续问答（如问完“有什么素菜”后追问“多少钱”），保留历史文本能让 AI 准确理解上下文指代，实现完美的单图多轮对话。
+这里的判断只决定“回填哪张图片以及是否保留文本历史”，不代表对用户意图进行分类。
 
-## 扩展与改造建议
+## 6. API 职责
 
-- 新增后端接口：在 `service/src/index.ts` 新增路由与校验逻辑；若涉及持久化，在 `storage/sqlite.ts` 扩展 CRUD；更新 `api/index.ts` 同步封装并在 `store` 调用。
-- 引入新模型或代理：扩展 `storage/model.ts` 的 `chatModelOptions` 与 `KeyConfig`；在 `chatgpt/index.ts` 增加代理适配逻辑与 `setupProxy` 分支。
-- 增加管理能力：利用 `rootAuth` 路由，扩展 `setting-*` 与 `statistics-*` 接口；前端在设置面板增加对应项与 i18n 文案。
-- 统一开发与生产的接口地址：确保 `VITE_GLOB_API_URL` 与开发代理 `VITE_APP_API_BASE_URL` 指向一致的后端；生产环境建议直接使用 `VITE_GLOB_API_URL`。
+| 分类 | 主要接口 | 职责 |
+| --- | --- | --- |
+| 聊天 | `/chat-process`、`/chat-abort`、`/chat-history`、`/chat-response-history`、`/chat-delete`、`/chat-clear` | 生成、中止、查询和管理消息 |
+| 房间 | `/room-create`、`/room-rename`、`/room-prompt`、`/room-context`、`/room-thinking`、`/room-chatmodel`、`/room-delete`、`/chatrooms` | 管理房间及房间级模型和功能开关 |
+| 图片 | `/upload-image`、`/upload-images`、`/uploads/*` | 上传图片并提供静态访问 |
+| 用户 | `/session`、`/user-login`、`/user-register`、`/user-info`、`/users`、`/user-status`、`/user-edit`、`/verify`、`/verifyadmin` | 会话、认证与用户管理 |
+| 配置与运维 | `/config`、`/setting-*`、`/mail-test`、`/audit-test`、`/statistics/by-day` | 站点配置、密钥、邮件、审核与统计 |
 
-## 注意事项与坑位
+部分配置、用户和统计接口受 `rootAuth` 保护。`/session` 使用 `POST`，其模型字段约定如下：
 
-- 认证开关：`AUTH_SECRET_KEY` 不为空即启用登录；前后端需正确处理 `token`，管理员能力取决于 `roles`。
-- 双入口挂载：后端既挂载在 `''` 又挂载在 `/api`，本地开发通过代理；线上可直接使用根路径以避免重复前缀。
-- sqlite 依赖：容器内需预装 `python3/make/g++/sqlite-dev`，Dockerfile 已处理；自行部署需确保这些依赖可用。
-- 使用统计字段：`usage` 同步在响应 `options` 内，前端需兼容无 `usage` 情况。
+- `chatModels`：管理员在各密钥上允许使用的模型并集
+- `allChatModels`：各密钥已持久化的可用模型并集；为空时回退到内置模型列表
 
----
+## 7. 密钥与模型缓存
 
-如需对某模块进行改造，请在 PR/变更说明中同步更新本文件对应章节，保持架构文档与实现一致。
+管理员在 `Keys.vue` 中刷新模型列表时，前端调用 `fetchOpenAIModels({ key, apiBaseUrl })`，并使用 `modelsStorage` 保存结果：
+
+- 缓存按规范化后的 `Base URL + API Key` 隔离，键格式为 `"<normalizedBaseUrl>__<apiKey>"`
+- `baseUrl` 会去除首尾空格和末尾斜杠；空地址使用 `__default_base__`
+- 命名空间缓存未命中时，可以从旧版 `__legacy__` 缓存回退
+- 刷新成功后会更新候选模型，并移除已选择但已不存在的模型
+- 刷新动画至少展示 `400ms`，避免快速请求导致闪烁
+
+不同服务地址或密钥必须保持独立缓存，修改命名空间规则时需要兼顾旧缓存迁移。
+
+## 8. 配置
+
+### 8.1 前端环境变量
+
+- `VITE_GLOB_API_URL`：Axios 基础地址，默认使用 `/api`
+- `VITE_APP_API_BASE_URL`：Vite 开发代理目标
+- `VITE_GLOB_OPEN_LONG_REPLY`：是否在输出长度受限时自动续写
+- `VITE_GLOB_APP_PWA`：是否启用 PWA
+
+### 8.2 后端配置
+
+API Key 和允许使用的模型主要在管理后台的密钥管理页面配置。常用环境变量包括：
+
+- `OPENAI_API_BASE_URL`：默认 OpenAI 兼容接口地址或中转地址
+- `AUTH_SECRET_KEY`：登录和 JWT 密钥；非空时启用鉴权
+- `TIMEOUT_MS`、`MAX_REQUEST_PER_HOUR`：模型请求超时与限流
+- `SOCKS_PROXY_*`、`HTTPS_PROXY`：网络代理
+- `SITE_TITLE`、`REGISTER_ENABLED` 等：站点和注册策略
+- `SMTP_*`、`AUDIT_*`：邮件和文本审核
+- `UPLOAD_MAX_SIZE_MB`、`UPLOAD_CLEAN_INTERVAL`、`UPLOAD_SAVE_HOURS`：上传限制与清理策略
+
+完整配置及默认值以 `service/.env.example` 和管理后台为准。
+
+## 9. 构建与部署
+
+- 本地开发：根目录运行前端，`service/` 运行后端；前端通过 Vite 代理访问后端。
+- 前端构建：`pnpm build`，包含 `vue-tsc --noEmit` 和 Vite 构建。
+- 后端构建：在 `service/` 运行 `pnpm build`，由 `tsup` 输出到 `service/build/`。
+- Docker：多阶段构建前端与后端，最终镜像在 `/app/public` 提供前端资源，通过 `./replace-title.sh && pnpm run prod` 启动，监听 `3002`。
+- Docker Compose：默认映射 `3002:3002`，并持久化 `/app/data` 与 `/app/uploads`；可选 Nginx 反向代理。
+- Kubernetes：`kubernetes/deploy.yaml` 提供 Deployment 和 Service 示例。
+
+SQLite 原生依赖需要 `python3`、`make`、`g++` 和 SQLite 开发库；Dockerfile 已安装并重新构建 `sqlite3`。
+
+## 10. 扩展与维护约束
+
+- 新增接口时，同步修改 `service/src/index.ts`、`src/api/index.ts`；涉及数据结构时同步修改 `service/src/storage/`。
+- 新增模型或代理能力时，检查密钥筛选、模型列表、请求参数和 Token 估算映射。
+- 新增房间级设置时，同时处理数据库字段、会话返回值、Pinia 状态、前端控件和国际化文案。
+- 开发和生产环境应分别核对 `VITE_APP_API_BASE_URL` 与 `VITE_GLOB_API_URL`，避免重复 `/api` 前缀。
+- `AUTH_SECRET_KEY` 非空即启用登录；管理员权限取决于用户角色是否包含 `Admin`。
+- 后端同时挂载根路径和 `/api`，部署反向代理时只能选择一种入口拼接方式。
+- 响应可能不包含模型原生 Usage，前端和统计逻辑必须兼容估算值或缺失值。
+- 提交影响架构、请求链路或关键定制的变更时，应同步更新本文档。
