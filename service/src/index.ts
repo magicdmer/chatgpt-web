@@ -27,6 +27,7 @@ import {
   getChatRooms,
   getChats,
   getChat,
+  getKeys,
   getUser,
   getUserById,
   getUserStatisticsByDay,
@@ -49,8 +50,6 @@ import {
   updateUserVisitTime,
   upsertKey,
   verifyUser,
-  getPluginConfigs,
-  updatePluginConfig,
 } from './storage/sqlite'
 import { authLimiter, limiter } from './middleware/limiter'
 import { hasAnyRole, isEmail, isNotEmptyString } from './utils/is'
@@ -58,6 +57,13 @@ import { sendNoticeMail, sendResetPasswordMail, sendTestMail, sendVerifyMail, se
 import { checkUserResetPassword, checkUserVerify, checkUserVerifyAdmin, getUserResetPasswordUrl, getUserVerifyUrl, getUserVerifyUrlAdmin, md5 } from './utils/security'
 import { rootAuth } from './middleware/rootAuth'
 import type { AuthJwtPayload } from './types'
+import {
+  getPluginListForUser,
+  initializePlugins,
+  savePluginSettings,
+  setPluginEnabledForUser,
+  setPluginPublished,
+} from './plugins'
 
 dotenv.config()
 
@@ -1108,8 +1114,13 @@ router.post('/user-edit', rootAuth, async (req, res) => {
       await updateUser(userId, roles, password, remark)
     }
     else {
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
+      if (!isEmail(normalizedEmail))
+        throw new Error('请输入格式正确的邮箱 | Please enter a valid email address.')
+      if (!isNotEmptyString(password))
+        throw new Error('密码不能为空 | Password cannot be empty.')
       const newPassword = md5(password)
-      const user = await createUser(email, newPassword, roles, remark)
+      const user = await createUser(normalizedEmail, newPassword, roles, remark)
       await updateUserStatus(user.id.toString(), Status.Normal)
     }
     res.send({ status: 'Success', message: '更新成功 | Update successfully' })
@@ -1338,40 +1349,105 @@ router.post('/setting-key-status', rootAuth, async (req, res) => {
 
 router.post('/statistics/by-day', auth, async (req, res) => {
   try {
-    let userId = ''
+    const requesterId = String(req.headers.userId)
+    const requester = await getUserById(requesterId)
+    if (!requester)
+      throw new Error('用户不存在')
 
-    const { userid, start, end } = req.body as { userid: string; start: number; end: number }
-    if (userid.length === 0)
-      userId = req.headers.userId as string
-    else
-      userId = userid
+    const { userid = '', start, end } = req.body as { userid?: string; start: number; end: number }
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start > end)
+      throw new Error('统计日期范围无效')
+    if (end - start > 366 * 86400000)
+      throw new Error('统计日期范围不能超过 366 天')
 
-    const data = await getUserStatisticsByDay(userId, start, end)
+    const admin = requester.roles?.includes(UserRole.Admin)
+    let targetUserId: string | null = requesterId
+    if (userid === 'all') {
+      if (!admin)
+        throw new Error('无权限查看全站统计')
+      targetUserId = null
+    }
+    else if (userid && userid !== requesterId) {
+      if (!admin)
+        throw new Error('无权限查看其他用户统计')
+      targetUserId = userid
+    }
+
+    const data = await getUserStatisticsByDay(targetUserId, start, end)
     res.send({ status: 'Success', message: '', data })
   }
-  catch (error) {
-    res.send(error)
-  }
-})
-
-router.post('/plugin/update', auth, rootAuth, async (req, res) => {
-  try {
-    const { name, settings } = req.body
-    if (!name) {
-      throw new Error('Name is required')
-    }
-    const config = await updatePluginConfig(name, settings)
-    res.send({ status: 'Success', message: '', data: config })
-  } catch (error) {
+  catch (error: any) {
     res.send({ status: 'Fail', message: error.message, data: null })
   }
 })
 
-router.get('/plugin/list', auth, rootAuth, async (req, res) => {
+router.get('/plugin/list', auth, async (req, res) => {
   try {
-    const configs = await getPluginConfigs()
-    res.send({ status: 'Success', message: '', data: configs })
-  } catch (error) {
+    const user = await getUserById(String(req.headers.userId))
+    if (!user)
+      throw new Error('用户不存在')
+    res.send({ status: 'Success', message: '', data: await getPluginListForUser(user) })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+router.get('/plugin/models', auth, rootAuth, async (_req, res) => {
+  try {
+    const { keys } = await getKeys()
+    const models = new Set<string>()
+    for (const key of keys) {
+      if (key.status !== Status.Normal)
+        continue
+      for (const model of key.availableModels || [])
+        models.add(model)
+    }
+    res.send({ status: 'Success', message: '', data: Array.from(models).sort() })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+router.post('/plugin/enabled', auth, async (req, res) => {
+  try {
+    const { id, enabled } = req.body as { id: string, enabled: boolean }
+    if (typeof id !== 'string' || !/^[0-9a-f]{32}$/.test(id) || typeof enabled !== 'boolean')
+      throw new Error('插件状态参数无效')
+    const user = await getUserById(String(req.headers.userId))
+    if (!user)
+      throw new Error('用户不存在')
+    await setPluginEnabledForUser(user, id, enabled)
+    res.send({ status: 'Success', message: '', data: null })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+router.post('/plugin/publish', auth, rootAuth, async (req, res) => {
+  try {
+    const { id, published } = req.body as { id: string, published: boolean }
+    if (typeof id !== 'string' || !/^[0-9a-f]{32}$/.test(id) || typeof published !== 'boolean')
+      throw new Error('插件发布参数无效')
+    await setPluginPublished(id, published)
+    res.send({ status: 'Success', message: '', data: null })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
+router.post('/plugin/settings', auth, rootAuth, async (req, res) => {
+  try {
+    const { id, settings } = req.body as { id: string, settings: Record<string, any> }
+    if (typeof id !== 'string' || !/^[0-9a-f]{32}$/.test(id))
+      throw new Error('插件设置参数无效')
+    await savePluginSettings(id, settings)
+    res.send({ status: 'Success', message: '', data: null })
+  }
+  catch (error: any) {
     res.send({ status: 'Fail', message: error.message, data: null })
   }
 })
@@ -1380,4 +1456,13 @@ app.use('', router)
 app.use('/api', router)
 
 const PORT = Number(process.env.PORT) || 3002
-app.listen(PORT, () => globalThis.console.log(`Server is running on port ${PORT}`))
+
+async function startServer() {
+  await initializePlugins()
+  app.listen(PORT, () => globalThis.console.log(`Server is running on port ${PORT}`))
+}
+
+startServer().catch((error) => {
+  globalThis.console.error('Failed to start server:', error)
+  process.exitCode = 1
+})

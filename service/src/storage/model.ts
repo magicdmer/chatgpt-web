@@ -272,11 +272,14 @@ export class KeyConfig {
 }
 
 export class PluginConfig {
-  id?: number
+  id: string
   name: string
+  published: boolean
   settings: Record<string, any>
-  constructor(name: string, settings: Record<string, any> = {}) {
+  constructor(id: string, name: string, published = false, settings: Record<string, any> = {}) {
+    this.id = id
     this.name = name
+    this.published = published
     this.settings = settings
   }
 }

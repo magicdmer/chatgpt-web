@@ -38,7 +38,7 @@ export default defineConfig((env) => {
     plugins: setupPlugins(viteEnv),
     server: {
       host: '0.0.0.0',
-      port: 1002,
+      port: Number(viteEnv.VITE_APP_PORT || 10002),
       open: false,
       proxy: {
         '/api': {
@@ -46,7 +46,7 @@ export default defineConfig((env) => {
           changeOrigin: true, // 允许跨域
           rewrite: path => path.replace('/api/', '/'),
         },
-        // 让 /uploads 在开发环境下也能通过 1002 端口访问
+        // 让 /uploads 在开发环境下也能通过前端开发端口访问
         '/uploads': {
           target: viteEnv.VITE_APP_API_BASE_URL,
           changeOrigin: true,

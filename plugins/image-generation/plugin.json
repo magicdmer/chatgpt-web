@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "apiVersion": 1,
+  "id": "ad373f21b9bd470ca761216e99d95d52",
+  "name": "图片生成",
+  "version": "1.0.0",
+  "description": "根据文字描述生成图片",
+  "author": "admin",
+  "entry": "index.ts",
+  "settings": {
+    "model": {
+      "description": "图片模型",
+      "type": "model",
+      "hint": "生成图片时使用的模型。",
+      "default": "dall-e-3",
+      "required": true
+    }
+  }
+}

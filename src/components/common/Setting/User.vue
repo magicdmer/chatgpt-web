@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { NButton, NDataTable, NInput, NModal, NSelect, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import { Status, UserInfo, UserRole, userRoleOptions } from './model'
 import { fetchGetUsers, fetchUpdateUser, fetchUpdateUserStatus } from '@/api'
@@ -14,6 +14,16 @@ const show = ref(false)
 const handleSaving = ref(false)
 const userRef = ref(new UserInfo([UserRole.User]))
 const buttonText = ref('')
+
+function isValidEmail(value?: string) {
+  return Boolean(value && /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value.trim()))
+}
+
+const emailStatus = computed(() => {
+  if (!userRef.value.email)
+    return undefined
+  return isValidEmail(userRef.value.email) ? undefined : 'error'
+})
 
 const users = ref([])
 const columns = [
@@ -228,6 +238,15 @@ function handleEditUser(user: UserInfo) {
 }
 
 async function handleUpdateUser() {
+  if (!userRef.value.id && !isValidEmail(userRef.value.email)) {
+    ms.error('请输入格式正确的邮箱')
+    return
+  }
+  if (!userRef.value.id && !userRef.value.password) {
+    ms.error('密码不能为空')
+    return
+  }
+
   handleSaving.value = true
   try {
     await fetchUpdateUser(userRef.value)
@@ -279,8 +298,13 @@ onMounted(async () => {
           <div class="flex-1">
             <NInput
               v-model:value="userRef.email"
-              :disabled="userRef.id !== undefined" placeholder="email"
+              :disabled="userRef.id !== undefined"
+              :status="emailStatus"
+              placeholder="name@example.com"
             />
+            <div v-if="emailStatus === 'error'" class="mt-1 text-xs text-red-500">
+              请输入格式正确的邮箱
+            </div>
           </div>
         </div>
 

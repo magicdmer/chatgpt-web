@@ -4,7 +4,6 @@ import OpenAI from 'openai'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import httpsProxyAgent from 'https-proxy-agent'
 import fetch from 'node-fetch'
-import axios from 'axios'
 import crypto from 'crypto'
 import type { KeyConfig, UserInfo } from '../storage/model'
 import { Status } from '../storage/model'
@@ -14,7 +13,7 @@ import { hasAnyRole, isNotEmptyString } from '../utils/is'
 import type { ChatContext, ModelConfig } from '../types'
 import { getChatByMessageId } from '../storage/sqlite'
 import type { RequestOptions, ChatMessage } from './types'
-import { getToolsForOpenAI, getPluginByName } from './plugins'
+import { executeToolForUser, getToolsForUser, resolveToolForUser } from '../plugins'
 
 const { HttpsProxyAgent } = httpsProxyAgent
 
@@ -57,102 +56,25 @@ export async function listModelsForKey(key: KeyConfig): Promise<string[]> {
   }
 }
 
-async function draw(url: string, key: string, prompt: string, model: string): Promise<string> {
-  let jsondata = {}
-  if (model === 'dall-e-2') {
-    jsondata = {
-      model,
-      prompt,
-      n: 1,
-      size: '512x512',
-    }
-  }
-  else {
-    jsondata = {
-      model,
-      prompt,
-      n: 1,
-      size: '1024x1024',
-    }
-  }
-
-  try {
-    const response = await axios.post(url, jsondata, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`,
-      },
-    })
-
-    const imageUrl = `![我的图片](${response.data.data[0].url})`
-    return imageUrl
-  }
-  catch (error) {
-    console.error(error)
-    throw error
-  }
-}
-
-async function mg_draw(url: string, key: string, prompt: string, model: string): Promise<string> {
-  const payload = {
-    model,
-    prompt
-  }
-
-  try {
-    const response = await axios.post(url, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': key,
-      },
-    })
-
-    if (response.data?.code !== 0) {
-      throw new Error('Image generation failed')
-    }
-
-    const imageUrl = response.data.image
-    if (!imageUrl) {
-      throw new Error('No image URL in response')
-    }
-
-    return `![我的图片](${imageUrl})`
-  }
-  catch (error) {
-    console.error(error)
-    throw error
-  }
-}
-
 const processThreads: { userId: string; abort: AbortController; messageId: string; chatUuid: number }[] = []
 
 async function chatReplyProcess(options: RequestOptions) {
   const chatModel = options.room.chatModel ?? 'gpt-3.5-turbo'
   let model = chatModel as string
-  const key = await getRandomApiKey(options.user, chatModel)
   const userId = options.user.id.toString()
   const messageId = options.messageId
-  if (key == null || key === undefined)
-    throw new Error('没有可用的配置。请再试一次 | No available configuration. Please try again.')
 
   const { message, lastContext, process: streamProcess, systemMessage, temperature, top_p } = options
 
   if (options.draw) {
-    const mgApiKey = process.env.MG_API_KEY
-    const mgApiUrl = process.env.MG_API_BASE_URL
+    const abort = new AbortController()
     try {
-      let imageUrl = ''
-      if (mgApiKey && mgApiUrl) {
-        imageUrl = await mg_draw(`${mgApiUrl}/private/ai_draw`, mgApiKey, message, chatModel)
-      }
-      else {
-        imageUrl = await draw(`${key.apiBaseUrl}/v1/images/generations`, key.key, message, chatModel)
-      }
+      const { result } = await executeToolForUser(options.user, 'generate_image', { prompt: message }, abort.signal)
 
       const dataRes = {
         status: 'Success',
         message: '',
-        text: imageUrl,
+        text: result,
       }
 
       return sendResponse({ type: 'Success', data: dataRes })
@@ -161,6 +83,10 @@ async function chatReplyProcess(options: RequestOptions) {
       return sendResponse({ type: 'Fail', message: error.message ?? error })
     }
   }
+
+  const key = await getRandomApiKey(options.user, chatModel)
+  if (key == null || key === undefined)
+    throw new Error('没有可用的配置。请再试一次 | No available configuration. Please try again.')
 
   try {
     const timeoutMs = (await getCacheConfig()).timeoutMs
@@ -216,20 +142,7 @@ async function chatReplyProcess(options: RequestOptions) {
     let reasoningFull = ''
     let lastThinkingLen = 0
 
-    const tools = getToolsForOpenAI()
-    if (model.startsWith('gemini-') && model.includes('flash')) {
-      tools.push({
-        type: 'function',
-        function: {
-          name: 'googleSearch',
-          description: 'Search Google for up-to-date information.',
-          parameters: {
-            type: 'object',
-            properties: {},
-          },
-        },
-      })
-    }
+    const tools = await getToolsForUser(options.user)
 
     let maxTurns = 5
     let finalResponseSent = false
@@ -362,33 +275,25 @@ async function chatReplyProcess(options: RequestOptions) {
         for (const tc of validToolCalls) {
           const pluginName = tc.function.name
           const shouldExposeToolResult = pluginName === 'generate_image'
+          const runtime = await resolveToolForUser(options.user, pluginName)
+          const displayName = runtime?.plugin.manifest.name || pluginName
 
           streamProcess?.({
             id: messageId,
             conversationId,
             role: 'assistant',
             text: rawText,
-            toolStatus: `正在调用插件 [${pluginName}]...`,
+            toolStatus: `正在调用插件 [${displayName}]...`,
             detail: { choices: [{ finish_reason: null }] }
           })
 
-          const plugin = getPluginByName(pluginName)
           let result = ''
-          if (plugin) {
-            try {
-              const args = JSON.parse(tc.function.arguments)
-              const context = {
-                chatModel,
-                key,
-                mgApiKey: process.env.MG_API_KEY,
-                mgApiUrl: process.env.MG_API_BASE_URL,
-              }
-              result = await plugin.execute(args, context)
-            } catch (err: any) {
-              result = `Error executing plugin: ${err.message}`
-            }
-          } else {
-            result = `Plugin ${pluginName} not found.`
+          try {
+            const args = JSON.parse(tc.function.arguments)
+            result = (await executeToolForUser(options.user, pluginName, args, abort.signal)).result
+          }
+          catch (err: any) {
+            result = `Error executing plugin: ${err.message}`
           }
 
           messages.push({

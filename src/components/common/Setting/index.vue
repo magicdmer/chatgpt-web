@@ -9,6 +9,7 @@ import Site from './Site.vue'
 import Mail from './Mail.vue'
 import User from './User.vue'
 import Key from './Keys.vue'
+import Plugin from './Plugin.vue'
 import { SvgIcon } from '@/components/common'
 import { useUserStore } from '@/store'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
@@ -69,6 +70,15 @@ const show = computed({
           </template>
           <div class="min-h-[100px]">
             <Statistics />
+          </div>
+        </NTabPane>
+        <NTabPane name="Plugins" tab="Plugins">
+          <template #tab>
+            <SvgIcon class="text-lg" icon="ri:plug-line" />
+            <span class="ml-2">{{ $t('setting.plugins') }}</span>
+          </template>
+          <div class="min-h-[100px]">
+            <Plugin />
           </div>
         </NTabPane>
         <NTabPane v-if="userStore.userInfo.root" name="Config" tab="Config">

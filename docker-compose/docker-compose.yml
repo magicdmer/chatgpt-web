@@ -10,6 +10,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
+      - ../plugins:/app/plugins:ro
     environment:
       TZ: Asia/Shanghai
       # 访问jwt加密参数，可选 不为空则允许登录
@@ -23,5 +24,7 @@ services:
       # 开启注册之后 超级管理邮箱
       ROOT_USER: xxx@qq.com
       # 网站是否开启注册 必须开启, 否则管理员都没法注册, 可后续关闭
-      REGISTER_ENABLED: true
+      REGISTER_ENABLED: 'true'
+      # 插件目录，对应上方只读挂载
+      PLUGIN_DIR: /app/plugins
       # 更多配置, 在运行后, 注册管理员, 在管理员页面中设置

@@ -30,11 +30,14 @@
 │  └─ main.ts                 # 前端启动入口
 ├─ service/
 │  ├─ src/chatgpt/            # 模型调用、流式处理和上下文组装
+│  ├─ src/plugins/            # 插件扫描、启用校验、工具执行与宿主服务
 │  ├─ src/middleware/         # 鉴权与限流中间件
 │  ├─ src/storage/            # SQLite、配置和密钥管理
 │  ├─ src/utils/              # 邮件、审核和 Token 等工具
+│  ├─ plugin-sdk/             # 插件 BasePlugin、@llmTool 与类型定义
 │  ├─ src/index.ts            # Express 入口与 REST 路由
 │  └─ .env.example            # 后端环境变量示例
+├─ plugins/                   # 外置插件；每个子目录包含 plugin.json 和 TS 入口
 ├─ docker-compose/            # Compose 与 Nginx 示例
 ├─ kubernetes/                # Kubernetes 部署示例
 ├─ Dockerfile                 # 前后端多阶段构建
@@ -89,8 +92,19 @@
 
 - `service/src/storage/sqlite.ts` 管理 `chat`、`chat_room`、`user`、`config`、`chat_usage` 和 `key_config` 等表。
 - `service/src/storage/config.ts` 合并数据库配置与环境变量，并维护配置缓存和密钥筛选逻辑。
+- 用量统计按服务器本地日期聚合 `chat_usage`。普通用户只能查询本人，管理员可查看全站或指定用户，并获得请求数、Token 汇总、估算占比、用户排行及会话模型分布；单次查询范围最多 366 天。
 - 图片上传支持单文件和多文件；上传结果以静态 URL 返回，聊天请求再将其转换为 OpenAI 兼容的 `image_url` 内容。
 - 上传清理器由保留时长和清理间隔控制，可通过环境变量关闭。
+
+### 4.4 插件运行时
+
+- 服务启动时扫描 `PLUGIN_DIR`（默认根目录 `plugins/`）下的一级子目录，校验 `plugin.json` 后动态加载 TypeScript 入口。
+- 插件入口默认导出 `BasePlugin` 子类；使用 `@llmTool` 标记的方法会自动成为 Function Call 工具，一个插件可以提供多个工具。
+- `plugin.json.id` 是去掉连字符的 32 位小写 GUID，也是数据库与用户状态的稳定主键；插件名称和工具名称均不设置数据库唯一约束。
+- 管理员可以使用未发布插件，也可以将插件发布给普通用户。每个用户独立启用或停用插件；启用时若任一工具名与已启用插件重复，服务端拒绝操作并提示冲突插件。
+- 插件设置由 `plugin.json.settings` 描述，只能由管理员统一修改；普通用户的插件页只提供启用和停用操作。密钥类设置不会通过查询接口回传明文。
+- 手动绘图与自动 Function Call 共用同一个 `generate_image` 工具。勾选绘图按钮时请求直接执行该工具并返回，不再进入聊天模型调用，因此不会重复生图，也不依赖当前聊天模型。
+- `plugin_config` 保存发布状态和全局设置，`user_plugin_config` 保存用户启用状态，`plugin_storage` 为插件提供按全局或用户隔离的 JSON 存储。
 
 ## 5. 核心运行链路
 
@@ -139,6 +153,7 @@
 | 图片 | `/upload-image`、`/upload-images`、`/uploads/*` | 上传图片并提供静态访问 |
 | 用户 | `/session`、`/user-login`、`/user-register`、`/user-info`、`/users`、`/user-status`、`/user-edit`、`/verify`、`/verifyadmin` | 会话、认证与用户管理 |
 | 配置与运维 | `/config`、`/setting-*`、`/mail-test`、`/audit-test`、`/statistics/by-day` | 站点配置、密钥、邮件、审核与统计 |
+| 插件 | `/plugin/list`、`/plugin/enabled`、`/plugin/publish`、`/plugin/settings` | 查询可见插件、用户启停、管理员发布与全局设置 |
 
 部分配置、用户和统计接口受 `rootAuth` 保护。`/session` 使用 `POST`，其模型字段约定如下：
 
@@ -177,6 +192,7 @@ API Key 和允许使用的模型主要在管理后台的密钥管理页面配置
 - `SITE_TITLE`、`REGISTER_ENABLED` 等：站点和注册策略
 - `SMTP_*`、`AUDIT_*`：邮件和文本审核
 - `UPLOAD_MAX_SIZE_MB`、`UPLOAD_CLEAN_INTERVAL`、`UPLOAD_SAVE_HOURS`：上传限制与清理策略
+- `PLUGIN_DIR`：外置插件根目录，容器内默认使用 `/app/plugins`
 
 完整配置及默认值以 `service/.env.example` 和管理后台为准。
 
@@ -186,7 +202,7 @@ API Key 和允许使用的模型主要在管理后台的密钥管理页面配置
 - 前端构建：`pnpm build`，包含 `vue-tsc --noEmit` 和 Vite 构建。
 - 后端构建：在 `service/` 运行 `pnpm build`，由 `tsup` 输出到 `service/build/`。
 - Docker：多阶段构建前端与后端，最终镜像在 `/app/public` 提供前端资源，通过 `./replace-title.sh && pnpm run prod` 启动，监听 `3002`。
-- Docker Compose：默认映射 `3002:3002`，并持久化 `/app/data` 与 `/app/uploads`；可选 Nginx 反向代理。
+- Docker Compose：默认映射 `3002:3002`，持久化 `/app/data` 与 `/app/uploads`，并将宿主机 `plugins/` 只读挂载到 `/app/plugins`；可选 Nginx 反向代理。
 - Kubernetes：`kubernetes/deploy.yaml` 提供 Deployment 和 Service 示例。
 
 SQLite 原生依赖需要 `python3`、`make`、`g++` 和 SQLite 开发库；Dockerfile 已安装并重新构建 `sqlite3`。
@@ -201,3 +217,5 @@ SQLite 原生依赖需要 `python3`、`make`、`g++` 和 SQLite 开发库；Dock
 - 后端同时挂载根路径和 `/api`，部署反向代理时只能选择一种入口拼接方式。
 - 响应可能不包含模型原生 Usage，前端和统计逻辑必须兼容估算值或缺失值。
 - 提交影响架构、请求链路或关键定制的变更时，应同步更新本文档。
+- 插件工具的参数 Schema 和执行入口必须同时存在；不要向模型暴露无法执行的临时工具声明。
+- 插件发布、设置和启用状态必须通过插件 ID 关联，不得用可变的插件名称作为主键。

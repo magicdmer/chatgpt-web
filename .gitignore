@@ -30,4 +30,5 @@ coverage
 
 # Environment variables files
 /service/.env
+/service/data/
 /docker-compose/nginx/html

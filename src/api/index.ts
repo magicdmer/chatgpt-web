@@ -331,9 +331,29 @@ export function fetchPluginList<T = any>() {
   })
 }
 
-export function fetchUpdatePlugin<T = any>(name: string, settings: Record<string, any>) {
+export function fetchPluginModels<T = any>() {
+  return get<T>({
+    url: '/plugin/models',
+  })
+}
+
+export function fetchUpdatePluginEnabled<T = any>(id: string, enabled: boolean) {
   return post<T>({
-    url: '/plugin/update',
-    data: { name, settings },
+    url: '/plugin/enabled',
+    data: { id, enabled },
+  })
+}
+
+export function fetchPublishPlugin<T = any>(id: string, published: boolean) {
+  return post<T>({
+    url: '/plugin/publish',
+    data: { id, published },
+  })
+}
+
+export function fetchUpdatePluginSettings<T = any>(id: string, settings: Record<string, any>) {
+  return post<T>({
+    url: '/plugin/settings',
+    data: { id, settings },
   })
 }

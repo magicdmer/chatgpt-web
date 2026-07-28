@@ -6,7 +6,7 @@ import List from './List.vue'
 import Footer from './Footer.vue'
 import { useAppStore, useAuthStore, useChatStore } from '@/store'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
-import { PluginStore, PromptStore, SvgIcon } from '@/components/common'
+import { PromptStore, SvgIcon } from '@/components/common'
 import { getDefaultChatModel } from '@/utils/chatModel'
 
 const appStore = useAppStore()
@@ -15,7 +15,6 @@ const chatStore = useChatStore()
 
 const { isMobile } = useBasicLayout()
 const show = ref(false)
-const showPluginStore = ref(false)
 
 const collapsed = computed(() => appStore.siderCollapsed)
 
@@ -95,14 +94,6 @@ watch(
             <SvgIcon icon="ri:booklet-line" class="text-base" />
             <span>{{ $t('store.siderButton') }}</span>
           </button>
-          <button
-            v-if="authStore.session?.userInfo?.root"
-            class="sider-prompt-btn"
-            @click="showPluginStore = true"
-          >
-            <SvgIcon icon="ri:plug-line" class="text-base" />
-            <span>插件商店</span>
-          </button>
         </div>
       </main>
       <Footer />
@@ -112,7 +103,6 @@ watch(
     <div v-show="!collapsed" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" @click="handleUpdateCollapsed" />
   </template>
   <PromptStore v-model:visible="show" />
-  <PluginStore v-model:visible="showPluginStore" />
 </template>
 
 <style scoped>
@@ -165,4 +155,3 @@ watch(
   color: var(--text-primary);
 }
 </style>
-

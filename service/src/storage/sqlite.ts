@@ -75,9 +75,20 @@ interface KeyConfigDBRow {
 }
 
 interface PluginConfigDBRow {
-  id: number
+  id: string
   name: string
+  published: number
   settings: string
+}
+
+interface UserPluginConfigDBRow {
+  user_id: string
+  plugin_id: string
+  enabled: number
+}
+
+interface PluginStorageDBRow {
+  value: string
 }
 
 dotenv.config()
@@ -197,12 +208,6 @@ db.serialize(() => {
     // ignore error if column already exists
   })
 
-  // 创建插件配置表
-  db.run(`CREATE TABLE IF NOT EXISTS plugin_config (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL,
-    settings TEXT DEFAULT '{}'
-  )`)
 })
 
 // 修改数据库查询方法的类型定义
@@ -220,6 +225,15 @@ const promisifyAll = <T extends Record<string, any>>(sql: string, params: any[] 
     db.all(sql, params, (err: Error | null, rows: T[]) => {
       if (err) reject(err)
       resolve(rows || [])
+    })
+  })
+}
+
+const promisifyRun = (sql: string, params: any[] = []): Promise<{ lastID: number, changes: number }> => {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function(err: Error | null) {
+      if (err) reject(err)
+      else resolve({ lastID: this.lastID, changes: this.changes })
     })
   })
 }
@@ -561,56 +575,125 @@ export async function updateKeyAvailableModelsByKey(key: string, apiBaseUrl: str
 }
 
 // 获取用户每日统计数据
-interface UsageStatsRow {
+interface DailyUsageStatsRow {
   date: string
+  requestCount: number
+  estimatedCount: number
   promptTokens: number
   completionTokens: number
   totalTokens: number
 }
 
-export async function getUserStatisticsByDay(userId: string, start: number, end: number): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      SELECT 
-        date(datetime(dateTime/1000, 'unixepoch')) as date,
-        SUM(promptTokens) as promptTokens,
-        SUM(completionTokens) as completionTokens,
-        SUM(totalTokens) as totalTokens
-      FROM chat_usage 
-      WHERE userId = ? AND dateTime >= ? AND dateTime <= ?
-      GROUP BY date
-      ORDER BY date ASC
-    `
-    
-    db.all<UsageStatsRow>(sql, [userId, start, end], (err, rows) => {
-      if (err) reject(err)
-      else {
-        const result = {
-          promptTokens: 0,
-          completionTokens: 0,
-          totalTokens: 0,
-          chartData: []
-        }
-        
-        const step = 86400000 // 1 day in milliseconds
-        for (let i = start; i <= end; i += step) {
-          const date = dayjs(i).format('YYYY-MM-DD')
-          const dateData = rows.find(x => x.date === date)
-            || { date, promptTokens: 0, completionTokens: 0, totalTokens: 0 }
-          
-          result.promptTokens += Number(dateData.promptTokens) || 0
-          result.completionTokens += Number(dateData.completionTokens) || 0
-          result.totalTokens += Number(dateData.totalTokens) || 0
-          result.chartData.push({
-            id: date,
-            ...dateData
-          })
-        }
-        
-        resolve(result)
-      }
-    })
-  })
+interface UsageRankingRow {
+  userId: string
+  email: string
+  remark?: string
+  requestCount: number
+  totalTokens: number
+}
+
+interface ModelUsageRow {
+  model: string
+  requestCount: number
+  totalTokens: number
+}
+
+export async function getUserStatisticsByDay(userId: string | null, start: number, end: number): Promise<any> {
+  const userWhere = userId === null ? '' : 'AND cu.userId = ?'
+  const params = userId === null ? [start, end] : [start, end, userId]
+  const dailyRows = await promisifyAll<DailyUsageStatsRow>(`
+    SELECT
+      date(datetime(cu.dateTime / 1000, 'unixepoch', 'localtime')) AS date,
+      COUNT(*) AS requestCount,
+      SUM(CASE WHEN cu.estimated THEN 1 ELSE 0 END) AS estimatedCount,
+      SUM(cu.promptTokens) AS promptTokens,
+      SUM(cu.completionTokens) AS completionTokens,
+      SUM(cu.totalTokens) AS totalTokens
+    FROM chat_usage cu
+    WHERE cu.dateTime >= ? AND cu.dateTime <= ? ${userWhere}
+    GROUP BY date
+    ORDER BY date ASC
+  `, params)
+
+  const userRanking = await promisifyAll<UsageRankingRow>(`
+    SELECT
+      cu.userId AS userId,
+      COALESCE(u.email, cu.userId) AS email,
+      u.remark AS remark,
+      COUNT(*) AS requestCount,
+      SUM(cu.totalTokens) AS totalTokens
+    FROM chat_usage cu
+    LEFT JOIN user u ON CAST(u.id AS TEXT) = cu.userId
+    WHERE cu.dateTime >= ? AND cu.dateTime <= ? ${userWhere}
+    GROUP BY cu.userId, u.email, u.remark
+    ORDER BY totalTokens DESC
+    LIMIT 10
+  `, params)
+
+  const modelDistribution = await promisifyAll<ModelUsageRow>(`
+    SELECT
+      COALESCE(NULLIF(cr.chatModel, ''), '未知模型') AS model,
+      COUNT(*) AS requestCount,
+      SUM(cu.totalTokens) AS totalTokens
+    FROM chat_usage cu
+    LEFT JOIN chat_room cr ON cr.roomId = cu.roomId AND cr.userId = cu.userId
+    WHERE cu.dateTime >= ? AND cu.dateTime <= ? ${userWhere}
+    GROUP BY model
+    ORDER BY totalTokens DESC
+    LIMIT 10
+  `, params)
+
+  const summary = {
+    requestCount: 0,
+    estimatedCount: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    averageTokens: 0,
+    estimatedRate: 0,
+  }
+  const dailyMap = new Map(dailyRows.map(row => [row.date, row]))
+  const chartData: Array<DailyUsageStatsRow & { id: string }> = []
+  const cursor = dayjs(start).startOf('day')
+  const lastDay = dayjs(end).startOf('day')
+
+  for (let day = cursor; day.valueOf() <= lastDay.valueOf(); day = day.add(1, 'day')) {
+    const date = day.format('YYYY-MM-DD')
+    const stored = dailyMap.get(date)
+    const row = {
+      date,
+      requestCount: Number(stored?.requestCount) || 0,
+      estimatedCount: Number(stored?.estimatedCount) || 0,
+      promptTokens: Number(stored?.promptTokens) || 0,
+      completionTokens: Number(stored?.completionTokens) || 0,
+      totalTokens: Number(stored?.totalTokens) || 0,
+    }
+    summary.requestCount += row.requestCount
+    summary.estimatedCount += row.estimatedCount
+    summary.promptTokens += row.promptTokens
+    summary.completionTokens += row.completionTokens
+    summary.totalTokens += row.totalTokens
+    chartData.push({ id: date, ...row })
+  }
+
+  summary.averageTokens = summary.requestCount > 0 ? Math.round(summary.totalTokens / summary.requestCount) : 0
+  summary.estimatedRate = summary.requestCount > 0 ? summary.estimatedCount / summary.requestCount : 0
+
+  return {
+    ...summary,
+    summary,
+    chartData,
+    userRanking: userRanking.map(row => ({
+      ...row,
+      requestCount: Number(row.requestCount) || 0,
+      totalTokens: Number(row.totalTokens) || 0,
+    })),
+    modelDistribution: modelDistribution.map(row => ({
+      ...row,
+      requestCount: Number(row.requestCount) || 0,
+      totalTokens: Number(row.totalTokens) || 0,
+    })),
+  }
 }
 
 // 清除聊天记录
@@ -997,48 +1080,169 @@ const runTransaction = async (queries: Array<{sql: string, params: any[]}>) => {
   })
 }
 
-// 获取所有插件配置
-export async function getPluginConfigs(): Promise<PluginConfig[]> {
-  const rows = await promisifyAll<PluginConfigDBRow>('SELECT * FROM plugin_config')
-  return rows.map(row => {
-    const config = new PluginConfig(row.name, JSON.parse(row.settings))
-    config.id = row.id
-    return config
-  })
+const IMAGE_GENERATION_PLUGIN_ID = 'ad373f21b9bd470ca761216e99d95d52'
+
+async function createPluginTables() {
+  await promisifyRun(`CREATE TABLE IF NOT EXISTS plugin_config (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    published INTEGER NOT NULL DEFAULT 0,
+    settings TEXT NOT NULL DEFAULT '{}'
+  )`)
+  await promisifyRun(`CREATE TABLE IF NOT EXISTS user_plugin_config (
+    user_id TEXT NOT NULL,
+    plugin_id TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, plugin_id),
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+    FOREIGN KEY (plugin_id) REFERENCES plugin_config(id) ON DELETE CASCADE
+  )`)
+  await promisifyRun(`CREATE TABLE IF NOT EXISTS plugin_storage (
+    plugin_id TEXT NOT NULL,
+    scope TEXT NOT NULL CHECK (scope IN ('global', 'user')),
+    owner_id TEXT NOT NULL DEFAULT '',
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (plugin_id, scope, owner_id, key),
+    FOREIGN KEY (plugin_id) REFERENCES plugin_config(id) ON DELETE CASCADE
+  )`)
 }
 
-// 获取单个插件配置
-export async function getPluginConfig(name: string): Promise<PluginConfig | null> {
-  const row = await promisifyGet<PluginConfigDBRow>('SELECT * FROM plugin_config WHERE name = ?', [name])
-  if (!row) return null
-  const config = new PluginConfig(row.name, JSON.parse(row.settings))
-  config.id = row.id
+export async function initializePluginStorage(): Promise<void> {
+  const table = await promisifyGet<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'plugin_config'")
+  if (!table) {
+    await createPluginTables()
+    await promisifyRun('PRAGMA foreign_keys = ON')
+    return
+  }
+
+  const columns = await promisifyAll<{ name: string, type: string }>('PRAGMA table_info(plugin_config)')
+  const idColumn = columns.find(column => column.name === 'id')
+  const needsMigration = !idColumn || idColumn.type.toUpperCase() !== 'TEXT' || !columns.some(column => column.name === 'published')
+
+  if (needsMigration) {
+    await promisifyRun('PRAGMA foreign_keys = OFF')
+    await promisifyRun('BEGIN TRANSACTION')
+    try {
+      await promisifyRun('DROP TABLE IF EXISTS user_plugin_config')
+      await promisifyRun('DROP TABLE IF EXISTS plugin_storage')
+      await promisifyRun('ALTER TABLE plugin_config RENAME TO plugin_config_legacy')
+      await promisifyRun(`CREATE TABLE plugin_config (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        published INTEGER NOT NULL DEFAULT 0,
+        settings TEXT NOT NULL DEFAULT '{}'
+      )`)
+      await promisifyRun(`INSERT INTO plugin_config (id, name, published, settings)
+        SELECT
+          CASE WHEN name = 'generate_image' THEN ? ELSE lower(hex(randomblob(16))) END,
+          CASE WHEN name = 'generate_image' THEN '图片生成' ELSE name END,
+          0,
+          COALESCE(settings, '{}')
+        FROM plugin_config_legacy`, [IMAGE_GENERATION_PLUGIN_ID])
+      await promisifyRun('DROP TABLE plugin_config_legacy')
+      await promisifyRun('COMMIT')
+    }
+    catch (error) {
+      await promisifyRun('ROLLBACK')
+      throw error
+    }
+    finally {
+      await promisifyRun('PRAGMA foreign_keys = ON')
+    }
+  }
+
+  await createPluginTables()
+  await promisifyRun('PRAGMA foreign_keys = ON')
+}
+
+function mapPluginConfig(row: PluginConfigDBRow): PluginConfig {
+  return new PluginConfig(row.id, row.name, Boolean(row.published), JSON.parse(row.settings || '{}'))
+}
+
+export async function syncPluginConfig(id: string, name: string, defaultSettings: Record<string, any>): Promise<PluginConfig> {
+  await promisifyRun(`INSERT INTO plugin_config (id, name, published, settings)
+    VALUES (?, ?, 0, ?)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name`, [id, name, JSON.stringify(defaultSettings)])
+  const config = await getPluginConfig(id)
+  if (!config)
+    throw new Error(`Failed to synchronize plugin ${id}`)
   return config
 }
 
-// 更新插件配置
-export async function updatePluginConfig(name: string, settings: Record<string, any>): Promise<PluginConfig> {
-  const existing = await getPluginConfig(name)
-  return new Promise<PluginConfig>((resolve, reject) => {
-    if (existing) {
-      const sql = 'UPDATE plugin_config SET settings = ? WHERE name = ?'
-      db.run(sql, [JSON.stringify(settings), name], (err) => {
-        if (err) reject(err)
-        else {
-          existing.settings = settings
-          resolve(existing)
-        }
-      })
-    } else {
-      const sql = 'INSERT INTO plugin_config (name, settings) VALUES (?, ?)'
-      db.run(sql, [name, JSON.stringify(settings)], function(err) {
-        if (err) reject(err)
-        else {
-          const config = new PluginConfig(name, settings)
-          config.id = this.lastID
-          resolve(config)
-        }
-      })
-    }
-  })
+export async function getPluginConfigs(): Promise<PluginConfig[]> {
+  const rows = await promisifyAll<PluginConfigDBRow>('SELECT * FROM plugin_config ORDER BY name, id')
+  return rows.map(mapPluginConfig)
+}
+
+export async function getPluginConfig(id: string): Promise<PluginConfig | null> {
+  const row = await promisifyGet<PluginConfigDBRow>('SELECT * FROM plugin_config WHERE id = ?', [id])
+  return row ? mapPluginConfig(row) : null
+}
+
+export async function updatePluginConfig(id: string, settings: Record<string, any>): Promise<PluginConfig> {
+  const result = await promisifyRun('UPDATE plugin_config SET settings = ? WHERE id = ?', [JSON.stringify(settings), id])
+  if (result.changes === 0)
+    throw new Error('Plugin not found')
+  const config = await getPluginConfig(id)
+  if (!config)
+    throw new Error('Plugin not found')
+  return config
+}
+
+export async function updatePluginPublished(id: string, published: boolean): Promise<PluginConfig> {
+  const result = await promisifyRun('UPDATE plugin_config SET published = ? WHERE id = ?', [published ? 1 : 0, id])
+  if (result.changes === 0)
+    throw new Error('Plugin not found')
+  const config = await getPluginConfig(id)
+  if (!config)
+    throw new Error('Plugin not found')
+  return config
+}
+
+export async function getUserPluginEnabled(userId: string, pluginId: string): Promise<boolean> {
+  const row = await promisifyGet<UserPluginConfigDBRow>(
+    'SELECT * FROM user_plugin_config WHERE user_id = ? AND plugin_id = ?',
+    [userId, pluginId],
+  )
+  return Boolean(row?.enabled)
+}
+
+export async function getEnabledPluginIds(userId: string): Promise<string[]> {
+  const rows = await promisifyAll<UserPluginConfigDBRow>(
+    'SELECT * FROM user_plugin_config WHERE user_id = ? AND enabled = 1',
+    [userId],
+  )
+  return rows.map(row => row.plugin_id)
+}
+
+export async function updateUserPluginEnabled(userId: string, pluginId: string, enabled: boolean): Promise<void> {
+  await promisifyRun(`INSERT INTO user_plugin_config (user_id, plugin_id, enabled)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id, plugin_id) DO UPDATE SET enabled = excluded.enabled`,
+  [userId, pluginId, enabled ? 1 : 0])
+}
+
+export async function getPluginStorageValue<T>(pluginId: string, scope: 'global' | 'user', ownerId: string, key: string): Promise<T | null> {
+  const row = await promisifyGet<PluginStorageDBRow>(
+    'SELECT value FROM plugin_storage WHERE plugin_id = ? AND scope = ? AND owner_id = ? AND key = ?',
+    [pluginId, scope, ownerId, key],
+  )
+  return row ? JSON.parse(row.value) as T : null
+}
+
+export async function setPluginStorageValue(pluginId: string, scope: 'global' | 'user', ownerId: string, key: string, value: unknown): Promise<void> {
+  await promisifyRun(`INSERT INTO plugin_storage (plugin_id, scope, owner_id, key, value, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(plugin_id, scope, owner_id, key)
+    DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+  [pluginId, scope, ownerId, key, JSON.stringify(value), Date.now()])
+}
+
+export async function deletePluginStorageValue(pluginId: string, scope: 'global' | 'user', ownerId: string, key: string): Promise<void> {
+  await promisifyRun(
+    'DELETE FROM plugin_storage WHERE plugin_id = ? AND scope = ? AND owner_id = ? AND key = ?',
+    [pluginId, scope, ownerId, key],
+  )
 }

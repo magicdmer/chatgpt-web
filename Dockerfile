@@ -16,6 +16,9 @@ COPY ./package.json /app
 
 COPY ./pnpm-lock.yaml /app
 
+# package.json references the local plugin SDK for plugin type checking.
+COPY ./service/plugin-sdk /app/service/plugin-sdk
+
 RUN pnpm install
 
 COPY . /app
@@ -32,6 +35,8 @@ WORKDIR /app
 COPY /service/package.json /app
 
 COPY /service/pnpm-lock.yaml /app
+
+COPY /service/plugin-sdk /app/plugin-sdk
 
 RUN pnpm install
 
@@ -55,6 +60,7 @@ WORKDIR /app
 
 COPY /service/package.json /app
 COPY /service/pnpm-lock.yaml /app
+COPY /service/plugin-sdk /app/plugin-sdk
 
 # 安装依赖并重新构建 sqlite3
 RUN pnpm install --production && \
@@ -74,6 +80,8 @@ COPY --from=frontend /app/dist /app/public
 COPY --from=backend /app/build /app/build
 
 COPY --from=backend /app/src/utils/templates /app/build/templates
+
+COPY /plugins /app/plugins
 
 EXPOSE 3002
 
