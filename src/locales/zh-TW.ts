@@ -75,6 +75,11 @@ export default {
   },
   setting: {
     setting: '設定',
+    addUser: '新增使用者',
+    addKey: '新增 Key',
+    key: '金鑰',
+    registerTime: '註冊時間',
+    visitTime: '造訪時間',
     general: '總覽',
     advanced: '高級',
     statistics: '統計',

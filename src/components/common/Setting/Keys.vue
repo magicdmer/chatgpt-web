@@ -102,7 +102,7 @@ const MIN_SPIN_MS = 400
 const keys = ref([])
 const columns = [
   {
-    title: 'Key',
+    title: t('setting.key'),
     key: 'key',
     resizable: true,
     width: 200,
@@ -111,12 +111,12 @@ const columns = [
     ellipsis: true,
   },
   {
-    title: 'Api Base Url',
+    title: t('setting.apiBaseUrl'),
     key: 'apiBaseUrl',
     width: 220,
   },
   {
-    title: 'Chat Model',
+    title: t('setting.chatModels'),
     key: 'chatModels',
     width: 320,
     render(row: any) {
@@ -139,7 +139,7 @@ const columns = [
     },
   },
   {
-    title: 'User Roles',
+    title: t('setting.userRoles'),
     key: 'userRoles',
     width: 200,
     render(row: any) {
@@ -162,7 +162,7 @@ const columns = [
     },
   },
   {
-    title: 'Status',
+    title: t('setting.status'),
     key: 'status',
     width: 150,
     render(row: any) {
@@ -182,7 +182,7 @@ const columns = [
     },
   },
   {
-    title: 'Action',
+    title: t('common.action'),
     key: 'id',
     width: 220,
     render(row: KeyConfig) {
@@ -319,11 +319,11 @@ onMounted(async () => {
   <div class="p-4 space-y-5 min-h-[300px]">
     <div class="space-y-6">
       <NSpace vertical :size="12">
-        <NSpace>
+        <div class="flex justify-end">
           <NButton @click="handleNewKey()">
-            New Key
+            {{ $t('setting.addKey') }}
           </NButton>
-        </NSpace>
+        </div>
         <NDataTable
           ref="table"
           remote

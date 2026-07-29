@@ -82,6 +82,11 @@ export default {
   },
   setting: {
     setting: 'Setting',
+    addUser: 'Add User',
+    addKey: 'Add Key',
+    key: 'Key',
+    registerTime: 'Register Time',
+    visitTime: 'Visit Time',
     general: 'General',
     advanced: 'Advanced',
     statistics: 'Statistics',

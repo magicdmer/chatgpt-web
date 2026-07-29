@@ -28,7 +28,7 @@ const emailStatus = computed(() => {
 const users = ref([])
 const columns = [
   {
-    title: 'Email',
+    title: t('setting.email'),
     key: 'email',
     resizable: true,
     width: 200,
@@ -36,17 +36,17 @@ const columns = [
     maxWidth: 200,
   },
   {
-    title: 'Register Time',
+    title: t('setting.registerTime'),
     key: 'createTime',
     width: 220,
   },
   {
-    title: 'Visit Time',
+    title: t('setting.visitTime'),
     key: 'visitTime',
     width: 220,
   },
   {
-    title: 'Roles',
+    title: t('setting.userRoles'),
     key: 'status',
     width: 200,
     render(row: any) {
@@ -69,12 +69,12 @@ const columns = [
     },
   },
   {
-    title: 'Remark',
+    title: t('setting.remark'),
     key: 'remark',
     width: 220,
   },
   {
-    title: 'Status',
+    title: t('setting.status'),
     key: 'status',
     width: 150,
     render(row: any) {
@@ -82,7 +82,7 @@ const columns = [
     },
   },
   {
-    title: 'Action',
+    title: t('common.action'),
     key: 'id',
     width: 220,
     render(row: any) {
@@ -268,11 +268,11 @@ onMounted(async () => {
   <div class="p-4 space-y-5 min-h-[200px]">
     <div class="space-y-6">
       <NSpace vertical :size="12">
-        <NSpace>
+        <div class="flex justify-end">
           <NButton @click="handleNewUser()">
-            New User
+            {{ $t('setting.addUser') }}
           </NButton>
-        </NSpace>
+        </div>
         <NDataTable
           ref="table"
           remote

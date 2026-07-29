@@ -4,7 +4,7 @@ const LOCAL_NAME = 'appSetting'
 
 export type Theme = 'light' | 'dark' | 'auto'
 
-export type Language = 'zh-CN' | 'zh-TW' | 'en-US' | 'ko-KR'
+export type Language = 'zh-CN' | 'zh-TW' | 'en-US'
 
 export interface AppState {
   siderCollapsed: boolean
@@ -19,7 +19,10 @@ export function defaultSetting(): AppState {
 
 export function getLocalSetting(): AppState {
   const localSetting: AppState | undefined = ss.get(LOCAL_NAME)
-  return { ...defaultSetting(), ...localSetting }
+  const setting = { ...defaultSetting(), ...localSetting }
+  if (!['zh-CN', 'zh-TW', 'en-US'].includes(setting.language))
+    setting.language = 'zh-CN'
+  return setting
 }
 
 export function setLocalSetting(setting: AppState): void {

@@ -78,7 +78,7 @@ const show = computed({
             <span class="ml-2">{{ $t('setting.plugins') }}</span>
           </template>
           <div class="min-h-[100px]">
-            <Plugin />
+            <Plugin v-if="active === 'Plugins'" />
           </div>
         </NTabPane>
         <NTabPane v-if="userStore.userInfo.root" name="Config" tab="Config">

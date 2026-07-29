@@ -337,6 +337,12 @@ export function fetchPluginModels<T = any>() {
   })
 }
 
+export function fetchRefreshPlugins<T = any>() {
+  return post<T>({
+    url: '/plugin/refresh',
+  })
+}
+
 export function fetchUpdatePluginEnabled<T = any>(id: string, enabled: boolean) {
   return post<T>({
     url: '/plugin/enabled',

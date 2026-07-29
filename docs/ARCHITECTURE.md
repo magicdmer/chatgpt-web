@@ -98,7 +98,7 @@
 
 ### 4.4 插件运行时
 
-- 服务启动时扫描 `PLUGIN_DIR`（默认根目录 `plugins/`）下的一级子目录，校验 `plugin.json` 后动态加载 TypeScript 入口。
+- 服务启动时扫描 `PLUGIN_DIR`（默认根目录 `plugins/`）下的一级子目录，校验 `plugin.json` 后动态加载 TypeScript 入口。管理员也可在插件页面点击“刷新”手动重新扫描；扫描完成后原子替换内存注册表。
 - 插件入口默认导出 `BasePlugin` 子类；使用 `@llmTool` 标记的方法会自动成为 Function Call 工具，一个插件可以提供多个工具。
 - `plugin.json.id` 是去掉连字符的 32 位小写 GUID，也是数据库与用户状态的稳定主键；插件名称和工具名称均不设置数据库唯一约束。
 - 管理员可以使用未发布插件，也可以将插件发布给普通用户。每个用户独立启用或停用插件；启用时若任一工具名与已启用插件重复，服务端拒绝操作并提示冲突插件。
@@ -153,7 +153,7 @@
 | 图片 | `/upload-image`、`/upload-images`、`/uploads/*` | 上传图片并提供静态访问 |
 | 用户 | `/session`、`/user-login`、`/user-register`、`/user-info`、`/users`、`/user-status`、`/user-edit`、`/verify`、`/verifyadmin` | 会话、认证与用户管理 |
 | 配置与运维 | `/config`、`/setting-*`、`/mail-test`、`/audit-test`、`/statistics/by-day` | 站点配置、密钥、邮件、审核与统计 |
-| 插件 | `/plugin/list`、`/plugin/enabled`、`/plugin/publish`、`/plugin/settings` | 查询可见插件、用户启停、管理员发布与全局设置 |
+| 插件 | `/plugin/list`、`/plugin/refresh`、`/plugin/enabled`、`/plugin/publish`、`/plugin/settings` | 查询可见插件、管理员刷新、用户启停、管理员发布与全局设置 |
 
 部分配置、用户和统计接口受 `rootAuth` 保护。`/session` 使用 `POST`，其模型字段约定如下：
 

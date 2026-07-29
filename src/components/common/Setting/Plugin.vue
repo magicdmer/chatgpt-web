@@ -18,6 +18,7 @@ import {
   fetchPluginList,
   fetchPluginModels,
   fetchPublishPlugin,
+  fetchRefreshPlugins,
   fetchUpdatePluginEnabled,
   fetchUpdatePluginSettings,
 } from '@/api'
@@ -54,6 +55,7 @@ interface PluginItem {
 const message = useMessage()
 const userStore = useUserStore()
 const loading = ref(false)
+const refreshing = ref(false)
 const saving = ref(false)
 const loadingModels = ref(false)
 const plugins = ref<PluginItem[]>([])
@@ -87,6 +89,21 @@ async function loadPlugins() {
   }
   finally {
     loading.value = false
+  }
+}
+
+async function refreshPlugins() {
+  refreshing.value = true
+  try {
+    await fetchRefreshPlugins()
+    await loadPlugins()
+    message.success('插件已刷新')
+  }
+  catch (error: any) {
+    message.error(error?.message || '刷新插件失败')
+  }
+  finally {
+    refreshing.value = false
   }
 }
 
@@ -240,6 +257,11 @@ onMounted(loadPlugins)
 
 <template>
   <div class="p-4 min-h-[200px]">
+    <div v-if="isAdmin" class="flex justify-end mb-3">
+      <NButton :loading="refreshing" :disabled="loading" @click="refreshPlugins">
+        刷新
+      </NButton>
+    </div>
     <NDataTable
       :columns="columns"
       :data="plugins"

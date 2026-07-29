@@ -1410,6 +1410,16 @@ router.get('/plugin/models', auth, rootAuth, async (_req, res) => {
   }
 })
 
+router.post('/plugin/refresh', auth, rootAuth, async (_req, res) => {
+  try {
+    await initializePlugins()
+    res.send({ status: 'Success', message: '', data: null })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error.message, data: null })
+  }
+})
+
 router.post('/plugin/enabled', auth, async (req, res) => {
   try {
     const { id, enabled } = req.body as { id: string, enabled: boolean }

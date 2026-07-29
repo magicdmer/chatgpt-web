@@ -31,6 +31,8 @@ import type {
 const ajv = new Ajv({ allErrors: true, strict: false })
 const loadedPlugins = new Map<string, LoadedPlugin>()
 const loadErrors: PluginLoadError[] = []
+let initializationPromise: Promise<void> | null = null
+let loadGeneration = 0
 // Keep the import expression native so tsup does not bundle external plugin entry files.
 // eslint-disable-next-line no-new-func
 const dynamicImport = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<any>
@@ -171,7 +173,7 @@ function validateSettingsForSave(manifest: PluginManifest, incoming: unknown, cu
   return result
 }
 
-async function loadPlugin(directory: string, manifest: PluginManifest): Promise<LoadedPlugin> {
+async function loadPlugin(directory: string, manifest: PluginManifest, generation: number): Promise<LoadedPlugin> {
   const entryPath = path.resolve(directory, manifest.entry)
   const relativeEntry = path.relative(directory, entryPath)
   if (relativeEntry.startsWith('..') || path.isAbsolute(relativeEntry) || path.extname(entryPath) !== '.ts')
@@ -179,7 +181,9 @@ async function loadPlugin(directory: string, manifest: PluginManifest): Promise<
   if (!fs.existsSync(entryPath) || !fs.statSync(entryPath).isFile())
     throw new Error(`插件入口不存在: ${manifest.entry}`)
 
-  const module = await dynamicImport(pathToFileURL(entryPath).href)
+  const entryUrl = pathToFileURL(entryPath)
+  entryUrl.searchParams.set('generation', String(generation))
+  const module = await dynamicImport(entryUrl.href)
   // tsx may expose a CommonJS-transpiled TypeScript default export as
   // module.default.default when it is loaded from the bundled server.
   const PluginClass = module.default?.default ?? module.default
@@ -211,14 +215,17 @@ async function loadPlugin(directory: string, manifest: PluginManifest): Promise<
   return { manifest, instance, tools }
 }
 
-export async function initializePlugins(): Promise<void> {
+async function loadPlugins(): Promise<void> {
   await initializePluginStorage()
-  loadedPlugins.clear()
-  loadErrors.length = 0
+  const nextLoadedPlugins = new Map<string, LoadedPlugin>()
+  const nextLoadErrors: PluginLoadError[] = []
+  const generation = ++loadGeneration
 
   const pluginDirectory = getPluginDirectory()
   if (!fs.existsSync(pluginDirectory)) {
     globalThis.console.warn(`Plugin directory does not exist: ${pluginDirectory}`)
+    loadedPlugins.clear()
+    loadErrors.length = 0
     return
   }
 
@@ -237,7 +244,7 @@ export async function initializePlugins(): Promise<void> {
       candidates.push({ directory, manifest: parseManifest(raw) })
     }
     catch (error: any) {
-      loadErrors.push({ directory, message: error?.message || String(error) })
+      nextLoadErrors.push({ directory, message: error?.message || String(error) })
     }
   }
 
@@ -252,20 +259,34 @@ export async function initializePlugins(): Promise<void> {
 
   for (const { directory, manifest } of candidates) {
     if (duplicateIds.has(manifest.id)) {
-      loadErrors.push({ directory, id: manifest.id, name: manifest.name, message: `插件 ID 重复: ${manifest.id}` })
+      nextLoadErrors.push({ directory, id: manifest.id, name: manifest.name, message: `插件 ID 重复: ${manifest.id}` })
       continue
     }
     try {
-      const plugin = await loadPlugin(directory, manifest)
-      loadedPlugins.set(manifest.id, plugin)
+      const plugin = await loadPlugin(directory, manifest, generation)
+      nextLoadedPlugins.set(manifest.id, plugin)
       await syncPluginConfig(manifest.id, manifest.name, getDefaultSettings(manifest))
       globalThis.console.log(`Loaded plugin: ${manifest.name} (${manifest.id})`)
     }
     catch (error: any) {
-      loadErrors.push({ directory, id: manifest.id, name: manifest.name, message: error?.message || String(error) })
+      nextLoadErrors.push({ directory, id: manifest.id, name: manifest.name, message: error?.message || String(error) })
       globalThis.console.error(`Failed to load plugin ${manifest.name}:`, error)
     }
   }
+
+  loadedPlugins.clear()
+  for (const [id, plugin] of nextLoadedPlugins)
+    loadedPlugins.set(id, plugin)
+  loadErrors.splice(0, loadErrors.length, ...nextLoadErrors)
+}
+
+export function initializePlugins(): Promise<void> {
+  if (initializationPromise)
+    return initializationPromise
+  initializationPromise = loadPlugins().finally(() => {
+    initializationPromise = null
+  })
+  return initializationPromise
 }
 
 function isAdmin(user: UserInfo): boolean {

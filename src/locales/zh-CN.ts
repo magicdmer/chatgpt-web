@@ -82,6 +82,11 @@ export default {
   },
   setting: {
     setting: '设置',
+    addUser: '添加用户',
+    addKey: '添加key',
+    key: '密钥',
+    registerTime: '注册时间',
+    visitTime: '访问时间',
     general: '总览',
     advanced: '高级',
     statistics: '统计',
