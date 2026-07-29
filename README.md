@@ -123,7 +123,7 @@
 
 ### Node
 
-`node` 需要 `^16 || ^18 || ^19` 版本（`node >= 14` 需要安装 [fetch polyfill](https://github.com/developit/unfetch#usage-as-a-polyfill)），使用 [nvm](https://github.com/nvm-sh/nvm) 可管理本地多个 `node` 版本
+项目使用 Node.js 24 LTS，推荐安装与 `.node-version` 一致的 `24.18.0`。可使用 [mise](https://mise.jdx.dev/) 或 [nvm](https://github.com/nvm-sh/nvm) 管理本地 Node.js 版本。
 
 ```shell
 node -v
@@ -132,7 +132,7 @@ node -v
 ### PNPM
 如果你没有安装过 `pnpm`
 ```shell
-npm install pnpm -g
+npm install pnpm@9.15.9 -g
 ```
 
 ### 填写密钥

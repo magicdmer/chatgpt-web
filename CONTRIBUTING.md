@@ -8,7 +8,7 @@
 
 ## 提交 Pull Request
 1. Fork [此仓库](https://github.com/Chanzhaoyu/chatgpt-web)，从 `main` 创建分支。新功能实现请发 pull request 到 `feature` 分支。其他更改发到 `main` 分支。
-2. 使用 `npm install pnpm -g` 安装 `pnpm` 工具。
+2. 使用 `npm install pnpm@9.15.9 -g` 安装项目固定版本的 `pnpm` 工具。
 3. `vscode` 安装了 `Eslint` 插件，其它编辑器如 `webStorm` 打开了 `eslint` 功能。
 4. 根目录下执行 `pnpm bootstrap`。
 5. `/service/` 目录下执行 `pnpm install`。

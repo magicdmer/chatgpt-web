@@ -8,7 +8,7 @@ Each major change will be recorded in the `changelog`.
 
 ## Submitting Pull Request
 1. Fork [this repository](https://github.com/Chanzhaoyu/chatgpt-web) and create a branch from `main`. For new feature implementations, submit a pull request to the `feature` branch. For other changes, submit to the `main` branch.
-2. Install the `pnpm` tool using `npm install pnpm -g`.
+2. Install the project-pinned `pnpm` version using `npm install pnpm@9.15.9 -g`.
 3. Install the `Eslint` plugin for `VSCode`, or enable `eslint` functionality for other editors such as `WebStorm`.
 4. Execute `pnpm bootstrap` in the root directory.
 5. Execute `pnpm install` in the `/service/` directory.

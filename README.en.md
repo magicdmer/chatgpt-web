@@ -127,7 +127,7 @@ For all parameter variables, check [here](#docker-parameter-example) or see:
 
 ### Node
 
-`node` requires version `^16 || ^18` (`node >= 14` requires installation of [fetch polyfill](https://github.com/developit/unfetch#usage-as-a-polyfill)), and multiple local `node` versions can be managed using [nvm](https://github.com/nvm-sh/nvm).
+The project uses Node.js 24 LTS. Installing `24.18.0`, as specified in `.node-version`, is recommended. Use [mise](https://mise.jdx.dev/) or [nvm](https://github.com/nvm-sh/nvm) to manage local Node.js versions.
 
 ```shell
 node -v
@@ -136,7 +136,7 @@ node -v
 ### PNPM
 If you have not installed `pnpm` before:
 ```shell
-npm install pnpm -g
+npm install pnpm@9.15.9 -g
 ```
 
 ### Fill in the Keys

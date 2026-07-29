@@ -79,8 +79,8 @@ importers:
         specifier: ^9.0.0
         version: 9.0.7
       '@types/node':
-        specifier: ^18.14.6
-        version: 18.14.6
+        specifier: ^24.0.0
+        version: 24.13.3
       eslint:
         specifier: ^8.35.0
         version: 8.35.0
@@ -535,6 +535,9 @@ packages:
 
   '@types/node@18.14.6':
     resolution: {integrity: sha512-93+VvleD3mXwlLI/xASjw0FzKcwzl3OdTCzm1LaRfqgS21gfFtK3zDXM5Op9TeeMsJVOaJ2VRDpT9q4Y3d0AvA==}
+
+  '@types/node@24.13.3':
+    resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
 
   '@types/normalize-package-data@2.4.1':
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -2777,6 +2780,9 @@ packages:
   unbox-primitive@1.0.2:
     resolution: {integrity: sha512-61pPlCD9h51VoreyJ0BReideM3MDKMKnh6+V9L08331ipq6Q8OFXZYiqP6n/tbHx4s5I9uRhcye6BrbkizkBDw==}
 
+  undici-types@7.18.2:
+    resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
+
   unique-filename@1.1.1:
     resolution: {integrity: sha512-Vmp0jIp2ln35UTXuryvjzkjGdRyf9b2lTXuSYUiPmzRcl3FDtYqAwOnTJkAngD9SWhnoJzDbTKwaOrZ+STtxNQ==}
 
@@ -3245,15 +3251,15 @@ snapshots:
   '@types/body-parser@1.19.2':
     dependencies:
       '@types/connect': 3.4.35
-      '@types/node': 18.14.6
+      '@types/node': 24.13.3
 
   '@types/connect@3.4.35':
     dependencies:
-      '@types/node': 18.14.6
+      '@types/node': 24.13.3
 
   '@types/express-serve-static-core@4.17.33':
     dependencies:
-      '@types/node': 18.14.6
+      '@types/node': 24.13.3
       '@types/qs': 6.9.7
       '@types/range-parser': 1.2.4
 
@@ -3270,7 +3276,7 @@ snapshots:
 
   '@types/jsonwebtoken@9.0.7':
     dependencies:
-      '@types/node': 18.14.6
+      '@types/node': 24.13.3
 
   '@types/mdast@3.0.10':
     dependencies:
@@ -3280,10 +3286,14 @@ snapshots:
 
   '@types/node-fetch@2.6.13':
     dependencies:
-      '@types/node': 18.14.6
+      '@types/node': 24.13.3
       form-data: 4.0.4
 
   '@types/node@18.14.6': {}
+
+  '@types/node@24.13.3':
+    dependencies:
+      undici-types: 7.18.2
 
   '@types/normalize-package-data@2.4.1': {}
 
@@ -3296,7 +3306,7 @@ snapshots:
   '@types/serve-static@1.15.1':
     dependencies:
       '@types/mime': 3.0.1
-      '@types/node': 18.14.6
+      '@types/node': 24.13.3
 
   '@types/unist@2.0.6': {}
 
@@ -5839,6 +5849,8 @@ snapshots:
       has-bigints: 1.0.2
       has-symbols: 1.0.3
       which-boxed-primitive: 1.0.2
+
+  undici-types@7.18.2: {}
 
   unique-filename@1.1.1:
     dependencies:

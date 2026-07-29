@@ -10,7 +10,7 @@
 - 模型接入：通过 OpenAI 兼容接口连接不同模型服务，可配置自定义 `baseURL`，通常由 `new-api` 等中转服务统一接入
 - 主要能力：多会话聊天、上下文续聊、流式响应、思考内容、图片上传与图文对话、图片生成、用户和密钥管理、限流、审核及使用量统计
 - 部署方式：支持 Docker、Docker Compose 和 Kubernetes，默认服务端口为 `3002`
-- 运行环境：项目以 Node.js 18 为主要构建和运行环境，可使用 `fnm` 管理 Node.js 版本
+- 运行环境：项目统一使用 Node.js 24 LTS 构建和运行，本地版本由 `mise.toml` 和 `.node-version` 固定；Alpine 镜像通过 node-gyp 11 从源码构建 SQLite 原生模块
 
 后端路由同时挂载在根路径和 `/api`。开发环境由 Vite 将 `/api` 与 `/uploads` 代理到后端；生产环境通常由同一个 Express 服务同时提供前端静态文件和 API。
 

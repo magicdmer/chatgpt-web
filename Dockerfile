@@ -1,14 +1,7 @@
 # build front-end
-FROM node:18-alpine AS frontend
+FROM node:24-alpine AS frontend
 
-RUN npm install pnpm -g
-
-# 安装构建工具和 SQLite 依赖
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    sqlite-dev
+RUN npm install pnpm@9.15.9 -g
     
 WORKDIR /app
 
@@ -19,16 +12,16 @@ COPY ./pnpm-lock.yaml /app
 # package.json references the local plugin SDK for plugin type checking.
 COPY ./service/plugin-sdk /app/service/plugin-sdk
 
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 COPY . /app
 
 RUN pnpm run build
 
 # build backend
-FROM node:18-alpine as backend
+FROM node:24-alpine AS backend
 
-RUN npm install pnpm -g
+RUN npm install pnpm@9.15.9 -g
 
 WORKDIR /app
 
@@ -38,23 +31,16 @@ COPY /service/pnpm-lock.yaml /app
 
 COPY /service/plugin-sdk /app/plugin-sdk
 
-RUN pnpm install
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 COPY /service /app
 
 RUN pnpm build
 
 # service
-FROM node:18-alpine
+FROM node:24-alpine
 
-RUN npm install pnpm -g
-
-# 添加必要的构建依赖
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    sqlite-dev
+RUN npm install pnpm@9.15.9 -g
 
 WORKDIR /app
 
@@ -62,11 +48,13 @@ COPY /service/package.json /app
 COPY /service/pnpm-lock.yaml /app
 COPY /service/plugin-sdk /app/plugin-sdk
 
-# 安装依赖并重新构建 sqlite3
-RUN pnpm install --production && \
-    cd node_modules/sqlite3 && \
-    pnpm rebuild && \
-    cd ../.. && \
+# 安装依赖并使用支持 Node 24 的 node-gyp 重新构建 sqlite3
+RUN apk add --no-cache --virtual .build-deps python3 make g++ && \
+    npm install node-gyp@11.5.0 -g && \
+    pnpm install --frozen-lockfile --production --ignore-scripts && \
+    node-gyp rebuild --directory node_modules/sqlite3 --nodedir=/usr/local && \
+    npm uninstall node-gyp -g && \
+    apk del .build-deps && \
     rm -rf /root/.npm /root/.pnpm-store /usr/local/share/.cache /tmp/*
 
 COPY /service /app
