@@ -10,7 +10,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
-      - ../plugins:/app/plugins:ro
+      - ./plugins:/app/plugins:ro
     environment:
       TZ: Asia/Shanghai
       # 访问jwt加密参数，可选 不为空则允许登录

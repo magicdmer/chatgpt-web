@@ -202,7 +202,7 @@ API Key 和允许使用的模型主要在管理后台的密钥管理页面配置
 - 前端构建：`pnpm build`，包含 `vue-tsc --noEmit` 和 Vite 构建。
 - 后端构建：在 `service/` 运行 `pnpm build`，由 `tsup` 输出到 `service/build/`。
 - Docker：多阶段构建前端与后端，最终镜像在 `/app/public` 提供前端资源，通过 `./replace-title.sh && pnpm run prod` 启动，监听 `3002`。
-- Docker Compose：默认映射 `3002:3002`，持久化 `/app/data` 与 `/app/uploads`，并将宿主机 `plugins/` 只读挂载到 `/app/plugins`；可选 Nginx 反向代理。
+- Docker Compose：默认映射 `3002:3002`，持久化 `/app/data` 与 `/app/uploads`，并将 Compose 部署目录下的 `plugins/` 只读挂载到 `/app/plugins`；可选 Nginx 反向代理。
 - Kubernetes：`kubernetes/deploy.yaml` 提供 Deployment 和 Service 示例。
 
 SQLite 原生依赖需要 `python3`、`make`、`g++` 和 SQLite 开发库；Dockerfile 已安装并重新构建 `sqlite3`。
