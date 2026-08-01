@@ -4,17 +4,15 @@ import * as dotenv from 'dotenv'
 import { textTokens } from 'gpt-token'
 import type { RequestProps } from './types'
 import type { ChatMessage } from './chatgpt'
-import { abortChatProcess, chatConfig, chatReplyProcess, listModelsForKey, createClient } from './chatgpt'
+import { abortChatProcess, chatConfig, chatReplyProcess, generateChatTitle, listModelsForKey } from './chatgpt'
 import { auth, getUserId } from './middleware/auth'
-import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig } from './storage/config'
+import { clearApiKeyCache, clearConfigCache, getApiKeys, getCacheApiKeys, getCacheConfig, getOriginConfig, normalizeMailConfig } from './storage/config'
 import { Status, UsageResponse, UserRole, UserConfig, chatModelOptions, KeyConfig } from './storage/model'
 import type { ChatInfo, ChatOptions, Config, MailConfig, SiteConfig, UserInfo, UserOption } from './storage/model'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
 import { createXXHash64 } from 'hash-wasm'
-import { toFile } from 'openai/uploads'
-import fetch from 'node-fetch'
 import {
   clearChat,
   createChatRoom,
@@ -39,9 +37,9 @@ import {
   updateApiKeyStatus,
   updateConfig,
   updateRoomChatModel,
+  updateAutomaticRoomTitle,
   updateRoomPrompt,
   updateRoomUsingContext,
-  updateRoomUsingThinking,
   updateRoomUsingDraw,
   updateUser,
   updateUserInfo,
@@ -69,6 +67,23 @@ dotenv.config()
 
 const app = express()
 const router = express.Router()
+
+function normalizeRoomTitle(value: string, maxLength = 40): string {
+  return String(value || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/^[\s#*`'"“”「」『』《》]+|[\s#*`'"“”「」『』《》。！？.!?]+$/g, '')
+    .replace(/^(?:标题|会话标题|title)\s*[:：]\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength)
+}
+
+function buildFallbackRoomTitle(prompt: string): string {
+  return normalizeRoomTitle(prompt, 30) || '新对话'
+}
 
 app.use(express.static('public'))
 app.use(express.json())
@@ -228,69 +243,6 @@ router.post('/upload-images', auth, upload.array('files', 10), async (req, res) 
   }
 })
 
-// ---- Image Edit (image-to-image) ----
-router.post('/image-edit', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const { prompt, images, mask, model, roomId, messageUuid } = req.body as { prompt: string; images: string[]; mask?: string; model?: string; roomId?: number; messageUuid?: number }
-    if (!prompt) {
-      res.send({ status: 'Fail', message: 'Missing prompt', data: null })
-      return
-    }
-    const keys = (await getCacheApiKeys()).filter(k => k.status !== Status.Disabled)
-    const preferModel = model || 'nano-banana'
-    const key: KeyConfig | undefined = keys.find(k => k.chatModels.includes('dall-e-3') || k.chatModels.includes(preferModel)) || keys[0]
-    if (!key) {
-      res.send({ status: 'Fail', message: 'No available API key', data: null })
-      return
-    }
-    const client = await createClient(key)
-
-    async function toFileFromUrlOrData(u: string, filename: string) {
-      const isUploads = (p: string) => p.startsWith('/uploads/') || p.startsWith('./uploads/') || p.startsWith('uploads/')
-      const final = buildAbsoluteUrl(u)
-      if (final.startsWith('data:')) {
-        const base64 = final.split(',')[1] || ''
-        const buf = Buffer.from(base64, 'base64')
-        return await toFile(buf, filename)
-      }
-      if (isUploads(u)) {
-        // 直接从本地上传目录读取文件
-        const name = path.basename(u)
-        const filePath = path.join(UPLOAD_DIR, name)
-        const buf = await fs.promises.readFile(filePath)
-        return await toFile(buf, filename)
-      }
-      const resp = await fetch(final)
-      const ab = await resp.arrayBuffer()
-      return await toFile(ab, filename)
-    }
-
-    // 支持多图片编辑：将全部图片转为 File，并传入 edits
-    const imageFiles = await Promise.all(images.map((u: string, i: number) => toFileFromUrlOrData(u, `image${i}.png`)))
-    const editArgs: any = { model: preferModel, prompt, image: imageFiles }
-    if (mask) editArgs.mask = await toFileFromUrlOrData(mask, 'mask.png')
-    const result = await client.images.edit(editArgs)
-    const urls: string[] = Array.isArray(result?.data) ? (result.data.map((d: any) => d?.url).filter((u: any) => !!u)) : []
-    const url = urls[0]
-    const markdown = urls.length > 0 ? urls.map(u => `![edited image](${u})`).join('\n') : ''
-    try {
-      if (roomId && await existsChatRoom(userId, Number(roomId))) {
-        const attachmentsMarkdown = Array.isArray(images) && images.length > 0
-          ? images.map((u: string) => `![image](${buildAbsoluteUrl(u)})`).join('\n')
-          : ''
-        const userText = attachmentsMarkdown ? `${prompt}\n\n${attachmentsMarkdown}` : prompt
-        const msg = await insertChat(Number(messageUuid || Date.now()), userText, Number(roomId), {} as any)
-        await updateChat(String(msg.id), markdown || (url || ''), '', '', null as any)
-      }
-    } catch {}
-    res.send({ status: 'Success', message: null, data: { url, urls, markdown } })
-  }
-  catch (error: any) {
-    res.send({ status: 'Fail', message: error?.message || String(error), data: null })
-  }
-})
-
 // ---- Uploads cleaner (optional) ----
 const CLEAN_INTERVAL_MIN = Number(process.env.UPLOAD_CLEAN_INTERVAL || 60) // minutes
 const RETENTION_HOURS = Number(process.env.UPLOAD_SAVE_HOURS || 24)
@@ -326,10 +278,10 @@ router.get('/chatrooms', auth, async (req, res) => {
       const item = {
         uuid: r.roomId,
         title: r.title,
+        titleSource: r.titleSource,
         isEdit: false,
         prompt: r.prompt,
         usingContext: r.usingContext === undefined ? true : r.usingContext,
-        usingThinking: r.usingThinking === undefined ? false : r.usingThinking,
         usingDraw: r.usingDraw === undefined ? false : r.usingDraw,
         chatModel: (r.chatModel === undefined || r.chatModel === null) ? 'gpt-3.5-turbo' : r.chatModel,
       }
@@ -361,12 +313,68 @@ router.post('/room-rename', auth, async (req, res) => {
   try {
     const userId = req.headers.userId as string
     const { title, roomId } = req.body as { title: string; roomId: number }
-    const room = await renameChatRoom(userId, title, roomId)
-    res.send({ status: 'Success', message: null, data: room })
+    const normalizedTitle = normalizeRoomTitle(title, 80)
+    if (!normalizedTitle) {
+      res.send({ status: 'Fail', message: '标题不能为空', data: null })
+      return
+    }
+    const updated = await renameChatRoom(userId, normalizedTitle, roomId)
+    if (!updated) {
+      res.send({ status: 'Fail', message: '会话不存在', data: null })
+      return
+    }
+    res.send({ status: 'Success', message: null, data: { title: normalizedTitle, titleSource: 'manual' } })
   }
   catch (error) {
     console.error(error)
     res.send({ status: 'Fail', message: 'Rename error', data: null })
+  }
+})
+
+router.post('/room-title', auth, async (req, res) => {
+  try {
+    const userId = String(req.headers.userId || '')
+    const { roomId, prompt, response } = req.body as { roomId: number; prompt: string; response: string }
+    const room = await getChatRoom(userId, roomId)
+    if (!room) {
+      res.send({ status: 'Fail', message: '会话不存在', data: null })
+      return
+    }
+    if (room.titleSource !== 'placeholder') {
+      res.send({ status: 'Success', message: null, data: { title: room.title, titleSource: room.titleSource } })
+      return
+    }
+
+    const fallbackTitle = buildFallbackRoomTitle(prompt)
+    const config = await getCacheConfig()
+    const titleModel = String(config.siteConfig?.titleModel || '').trim()
+    let title = fallbackTitle
+    let titleSource: 'fallback' | 'generated' = 'fallback'
+
+    if (titleModel) {
+      try {
+        const user = await getUserById(userId)
+        const generatedTitle = normalizeRoomTitle(await generateChatTitle(user, titleModel, String(prompt || ''), String(response || '')))
+        if (generatedTitle) {
+          title = generatedTitle
+          titleSource = 'generated'
+        }
+      }
+      catch (error) {
+        globalThis.console.warn('生成会话标题失败，已使用本地标题:', error)
+      }
+    }
+
+    const updated = await updateAutomaticRoomTitle(userId, title, roomId, titleSource)
+    if (!updated) {
+      const latestRoom = await getChatRoom(userId, roomId)
+      res.send({ status: 'Success', message: null, data: { title: latestRoom?.title || title, titleSource: latestRoom?.titleSource || titleSource } })
+      return
+    }
+    res.send({ status: 'Success', message: null, data: { title, titleSource } })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error?.message || '标题生成失败', data: null })
   }
 })
 
@@ -415,24 +423,6 @@ router.post('/room-context', auth, async (req, res) => {
   catch (error) {
     console.error(error)
     res.send({ status: 'Fail', message: 'Rename error', data: null })
-  }
-})
-
-// 更新聊天室思考开关
-router.post('/room-thinking', auth, async (req, res) => {
-  try {
-    const userId = req.headers.userId as string
-    const { using, roomId } = req.body as { using: boolean; roomId: number }
-    if (!roomId || !await existsChatRoom(userId, roomId)) {
-      res.send({ status: 'Fail', message: 'Unknow room', data: null })
-      return
-    }
-    await updateRoomUsingThinking(userId, roomId, using)
-    res.send({ status: 'Success', message: null, data: null })
-  }
-  catch (error) {
-    console.error(error)
-    res.send({ status: 'Fail', message: 'Update error', data: null })
   }
 })
 
@@ -654,7 +644,7 @@ router.post('/chat-clear', auth, async (req, res) => {
 router.post('/chat-process', [auth, limiter], async (req, res) => {
   res.setHeader('Content-type', 'application/octet-stream')
 
-  let { roomId, uuid, regenerate, prompt, images = [], options = {}, extra_body, systemMessage, temperature, top_p, draw, autoContinue } = req.body as RequestProps
+  let { roomId, uuid, regenerate, prompt, images = [], options = {}, systemMessage, temperature, top_p, draw, autoContinue } = req.body as RequestProps
   const userId = req.headers.userId as string
   const room = await getChatRoom(userId, roomId)
   if (room == null)
@@ -727,7 +717,6 @@ router.post('/chat-process', [auth, limiter], async (req, res) => {
       systemMessage,
       temperature,
       top_p,
-      extra_body,
       user,
       messageId: message.id.toString(),
       chatUuid: uuid,
@@ -1224,7 +1213,7 @@ router.post('/setting-site', rootAuth, async (req, res) => {
 
 router.post('/setting-mail', rootAuth, async (req, res) => {
   try {
-    const config = req.body as MailConfig
+    const config = normalizeMailConfig(req.body as MailConfig & { smtpTsl?: boolean })
 
     const thisConfig = await getOriginConfig()
     thisConfig.mailConfig = config
@@ -1239,7 +1228,7 @@ router.post('/setting-mail', rootAuth, async (req, res) => {
 
 router.post('/mail-test', rootAuth, async (req, res) => {
   try {
-    const config = req.body as MailConfig
+    const config = normalizeMailConfig(req.body as MailConfig & { smtpTsl?: boolean })
     const userId = req.headers.userId as string
     const user = await getUserById(userId)
     await sendTestMail(user.email, config)
@@ -1272,11 +1261,9 @@ router.post('/setting-key-status', rootAuth, async (req, res) => {
   }
 })
 
-  router.post('/setting-key-upsert', rootAuth, async (req, res) => {
+router.post('/setting-key-upsert', rootAuth, async (req, res) => {
   try {
     const keyConfig = req.body as KeyConfig
-    if (keyConfig.id !== undefined)
-      keyConfig.id = keyConfig.id
     await upsertKey(keyConfig)
     clearApiKeyCache()
     res.send({ status: 'Success', message: '成功 | Successfully' })
@@ -1284,68 +1271,83 @@ router.post('/setting-key-status', rootAuth, async (req, res) => {
   catch (error) {
     res.send({ status: 'Fail', message: error.message, data: null })
   }
-  })
+})
 
-  // 获取指定密钥下的模型列表（管理员）
-  router.get('/setting-key-models', rootAuth, async (req, res) => {
-    try {
-      const id = String(req.query.id || '')
-      const directKey = String(req.query.key || '')
-      const apiBaseUrl = String(req.query.apiBaseUrl || '')
+// 获取指定密钥下的模型列表（管理员）
+const handleGetKeyModels = async (req: express.Request, res: express.Response) => {
+  try {
+    const input = req.method === 'GET' ? req.query : req.body
+    const id = String(input.id || '')
+    const directKey = String(input.key || '')
+    const apiBaseUrl = String(input.apiBaseUrl || '')
 
-      let targetKey: KeyConfig | null = null
+    let targetKey: KeyConfig | null = null
+    let persistById = false
 
-      // 优先使用前端直接传入的 key/apiBaseUrl（无需查询数据库）
-      if (directKey) {
-        targetKey = {
-          id: undefined,
-          key: directKey,
-          apiBaseUrl,
-          chatModels: [],
-          userRoles: [],
-          status: 0,
-          remark: '',
-        } as KeyConfig
-      }
-      else if (id) {
-        // 兼容旧逻辑：根据 id 查询
+    // 优先使用前端直接传入的 key/apiBaseUrl（无需查询数据库）
+    if (directKey) {
+      targetKey = {
+        id: undefined,
+        key: directKey,
+        apiBaseUrl,
+        chatModels: [],
+        userRoles: [],
+        status: 0,
+        remark: '',
+      } as KeyConfig
+      if (id) {
         const { getKeys } = await import('./storage/sqlite')
         const result = await getKeys()
-        const raw = result.keys.find((k: any) => String(k.id) === id)
-        if (!raw) {
-          res.send({ status: 'Fail', message: 'Key not found' })
-          return
-        }
-        targetKey = raw as KeyConfig
+        const savedKey = result.keys.find(key => String(key.id) === id)
+        persistById = Boolean(savedKey
+          && savedKey.key === directKey
+          && String(savedKey.apiBaseUrl || '') === apiBaseUrl)
       }
-      else {
-        res.send({ status: 'Fail', message: 'Missing key or id' })
+    }
+    else if (id) {
+      // 兼容旧逻辑：根据 id 查询
+      const { getKeys } = await import('./storage/sqlite')
+      const result = await getKeys()
+      const raw = result.keys.find((k: any) => String(k.id) === id)
+      if (!raw) {
+        res.send({ status: 'Fail', message: 'Key not found' })
         return
       }
+      targetKey = raw as KeyConfig
+      persistById = true
+    }
+    else {
+      res.send({ status: 'Fail', message: 'Missing key or id' })
+      return
+    }
 
-      const models = await listModelsForKey(targetKey)
-      // 刷新后将模型列表持久化到数据库，便于前端统一展示
-      try {
-        if (id) {
-          const { updateKeyAvailableModels } = await import('./storage/sqlite')
-          await updateKeyAvailableModels(Number(id), models)
-        }
-        else if (directKey) {
-          const { updateKeyAvailableModelsByKey } = await import('./storage/sqlite')
-          await updateKeyAvailableModelsByKey(directKey, apiBaseUrl || undefined, models)
-        }
-        clearApiKeyCache()
+    const models = await listModelsForKey(targetKey)
+    // 刷新后将模型列表持久化到数据库，便于前端统一展示
+    try {
+      if (id && persistById) {
+        const { updateKeyAvailableModels } = await import('./storage/sqlite')
+        await updateKeyAvailableModels(Number(id), models)
       }
-      catch (persistErr) {
-        // 持久化失败不影响返回模型列表，仅记录错误
-        globalThis.console.warn('Persist models failed:', persistErr)
+      else if (directKey && !id) {
+        const { updateKeyAvailableModelsByKey } = await import('./storage/sqlite')
+        await updateKeyAvailableModelsByKey(directKey, apiBaseUrl || undefined, models)
       }
-      res.send({ status: 'Success', data: models })
+      clearApiKeyCache()
     }
-    catch (error: any) {
-      res.send({ status: 'Fail', message: error?.message || String(error) })
+    catch (persistErr) {
+      // 持久化失败不影响返回模型列表，仅记录错误
+      globalThis.console.warn('Persist models failed:', persistErr)
     }
-  })
+    res.send({ status: 'Success', data: models })
+  }
+  catch (error: any) {
+    res.send({ status: 'Fail', message: error?.message || String(error) })
+  }
+}
+
+router.post('/setting-key-models', rootAuth, handleGetKeyModels)
+// 兼容已缓存的旧前端；新前端使用 POST，避免 API Key 出现在查询串和访问日志中。
+router.get('/setting-key-models', rootAuth, handleGetKeyModels)
 
 router.post('/statistics/by-day', auth, async (req, res) => {
   try {

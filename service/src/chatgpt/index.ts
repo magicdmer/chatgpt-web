@@ -46,14 +46,9 @@ export async function createClient(key: KeyConfig) {
 // 列出给定密钥/基地地址下的模型列表，用于前端动态刷新
 export async function listModelsForKey(key: KeyConfig): Promise<string[]> {
   const client = await createClient(key)
-  try {
-    const list = await client.models.list()
-    const data: any[] = (list as any)?.data ?? []
-    return data.map((m: any) => m.id).filter((id: string) => typeof id === 'string')
-  }
-  catch (err) {
-    return []
-  }
+  const list = await client.models.list()
+  const data: any[] = (list as any)?.data ?? []
+  return data.map((m: any) => m.id).filter((id: string) => typeof id === 'string')
 }
 
 const processThreads: { userId: string; abort: AbortController; messageId: string; chatUuid: number }[] = []
@@ -143,6 +138,19 @@ async function chatReplyProcess(options: RequestOptions) {
     let lastThinkingLen = 0
 
     const tools = await getToolsForUser(options.user)
+    if (model.toLowerCase().startsWith('gemini-') && model.toLowerCase().includes('flash')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'googleSearch',
+          description: 'Search Google for up-to-date information.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+      })
+    }
 
     let maxTurns = 5
     let finalResponseSent = false
@@ -160,7 +168,6 @@ async function chatReplyProcess(options: RequestOptions) {
         top_p,
         stream: true,
         ...(tools && tools.length > 0 ? { tools } : {}),
-        ...(options.extra_body ? { extra_body: options.extra_body } : {}),
       }, { signal: abort.signal, timeout: timeoutMs })
 
       for await (const chunk of stream) {
@@ -493,6 +500,30 @@ async function getRandomApiKey(user: UserInfo, chatModel: string): Promise<KeyCo
   let keys = (await getCacheApiKeys()).filter(d => hasAnyRole(d.userRoles, user.roles))
     .filter(d => d.chatModels.includes(chatModel)).filter(d => d.status !== Status.Disabled)
   return randomKeyConfig(keys)
+}
+
+export async function generateChatTitle(user: UserInfo, model: string, userMessage: string, assistantMessage: string): Promise<string> {
+  const key = await getRandomApiKey(user, model)
+  if (!key)
+    throw new Error(`未找到当前用户可用的标题总结模型 ${model}`)
+
+  const client = await createClient(key)
+  const timeoutMs = (await getCacheConfig()).timeoutMs
+  const completion = await client.chat.completions.create({
+    model,
+    messages: [
+      {
+        role: 'system',
+        content: '根据首轮对话生成一个简短的会话标题。中文使用 6 到 15 个字，英文使用 3 到 8 个单词。只输出标题，不要引号、句号、Markdown 或解释。',
+      },
+      {
+        role: 'user',
+        content: `用户：${userMessage.slice(0, 4000)}\n\n助手：${assistantMessage.slice(0, 4000)}`,
+      },
+    ],
+  }, { timeout: timeoutMs })
+
+  return String(completion.choices?.[0]?.message?.content || '')
 }
 
 export type { ChatContext, ChatMessage }

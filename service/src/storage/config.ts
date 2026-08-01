@@ -8,6 +8,29 @@ dotenv.config()
 let cachedConfig: Config | undefined
 let cacheExpiration = 0
 
+type LegacyMailConfig = MailConfig & { smtpTsl?: boolean }
+
+function smtpTlsFromEnvironment(): boolean {
+  return (process.env.SMTP_TLS ?? process.env.SMTP_TSL) === 'true'
+}
+
+function mailConfigFromEnvironment(): MailConfig {
+  return new MailConfig(
+    process.env.SMTP_HOST,
+    !isNaN(+process.env.SMTP_PORT) ? +process.env.SMTP_PORT : 465,
+    smtpTlsFromEnvironment(),
+    process.env.SMTP_USERNAME,
+    process.env.SMTP_PASSWORD,
+  )
+}
+
+export function normalizeMailConfig(config: LegacyMailConfig): MailConfig {
+  if (config.smtpTls === undefined)
+    config.smtpTls = config.smtpTsl ?? smtpTlsFromEnvironment()
+  delete config.smtpTsl
+  return config
+}
+
 export async function getCacheConfig(): Promise<Config> {
   const now = Date.now()
   if (cachedConfig && cacheExpiration > now)
@@ -44,12 +67,9 @@ export async function getOriginConfig() {
         process.env.REGISTER_REVIEW === 'true',
         process.env.REGISTER_MAILS,
         process.env.SITE_DOMAIN,
-        process.env.DEFAULT_CHAT_MODEL || ''),
-      new MailConfig(process.env.SMTP_HOST,
-        !isNaN(+process.env.SMTP_PORT) ? +process.env.SMTP_PORT : 465,
-        process.env.SMTP_TSL === 'true',
-        process.env.SMTP_USERNAME,
-        process.env.SMTP_PASSWORD))
+        process.env.DEFAULT_CHAT_MODEL || '',
+        process.env.TITLE_MODEL || ''),
+      mailConfigFromEnvironment())
   }
   else {
     if (config.siteConfig.loginEnabled === undefined)
@@ -67,6 +87,11 @@ export async function getOriginConfig() {
       config.siteConfig.registerReview = process.env.REGISTER_REVIEW === 'true'
     if (config.siteConfig.defaultChatModel === undefined)
       config.siteConfig.defaultChatModel = process.env.DEFAULT_CHAT_MODEL || ''
+    if (config.siteConfig.titleModel === undefined)
+      config.siteConfig.titleModel = process.env.TITLE_MODEL || ''
+    config.mailConfig = config.mailConfig
+      ? normalizeMailConfig(config.mailConfig as LegacyMailConfig)
+      : mailConfigFromEnvironment()
   }
   return config
 }

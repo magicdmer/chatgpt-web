@@ -107,18 +107,18 @@ export class ChatRoom {
   roomId: number
   userId: string
   title: string
+  titleSource: string
   prompt: string = ''
   usingContext: boolean
-  usingThinking?: boolean
   usingDraw?: boolean
   status: Status = Status.Normal
   chatModel: string
   constructor(userId: string, title: string, roomId: number, chatModel: string) {
     this.userId = userId
     this.title = title
+    this.titleSource = 'placeholder'
     this.roomId = roomId
     this.usingContext = true
-    this.usingThinking = false
     this.usingDraw = false
     this.chatModel = chatModel
   }
@@ -238,6 +238,7 @@ export class SiteConfig {
     public registerMails?: string,
     public siteDomain?: string,
     public defaultChatModel?: string,
+    public titleModel?: string,
   ) { }
 }
 
@@ -245,7 +246,7 @@ export class MailConfig {
   constructor(
     public smtpHost: string,
     public smtpPort: number,
-    public smtpTsl: boolean,
+    public smtpTls: boolean,
     public smtpUserName: string,
     public smtpPassword: string,
   ) { }

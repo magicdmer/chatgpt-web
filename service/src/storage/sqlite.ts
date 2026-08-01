@@ -24,9 +24,9 @@ interface ChatRoomDBRow {
   roomId: number
   userId: string
   title: string
+  titleSource?: string
   prompt?: string
   usingContext: boolean
-  usingThinking?: boolean
   usingDraw?: boolean
   status: number
   chatModel: string
@@ -124,17 +124,18 @@ db.serialize(() => {
     roomId INTEGER NOT NULL,
     userId TEXT NOT NULL,
     title TEXT NOT NULL,
+    titleSource TEXT DEFAULT 'placeholder',
     prompt TEXT,
     usingContext BOOLEAN DEFAULT true,
     status INTEGER DEFAULT 0,
     chatModel TEXT DEFAULT 'gpt-3.5-turbo'
   )`)
 
-  // 尝试为 chat_room 增加 usingThinking 字段（若已存在则忽略错误）
-  db.run('ALTER TABLE chat_room ADD COLUMN usingThinking BOOLEAN DEFAULT 0', [], (err) => {
+  // 旧数据库中已有标题不参与自动重命名
+  db.run("ALTER TABLE chat_room ADD COLUMN titleSource TEXT DEFAULT 'legacy'", [], (err) => {
     // ignore error if column already exists
   })
-  
+
   // 尝试为 chat_room 增加 usingDraw 字段（若已存在则忽略错误）
   db.run('ALTER TABLE chat_room ADD COLUMN usingDraw BOOLEAN DEFAULT 0', [], (err) => {
     // ignore error if column already exists
@@ -279,8 +280,8 @@ export async function getChatByMessageId(messageId: string): Promise<ChatInfo | 
 export async function createChatRoom(userId: string, title: string, roomId: number, chatModel: string) {
   const room = new ChatRoom(userId, title, roomId, chatModel)
   return new Promise<ChatRoom>((resolve, reject) => {
-    const sql = 'INSERT INTO chat_room (userId, title, roomId, chatModel) VALUES (?, ?, ?, ?)'
-    db.run(sql, [userId, title, roomId, chatModel], function(err) {
+    const sql = 'INSERT INTO chat_room (userId, title, titleSource, roomId, chatModel) VALUES (?, ?, ?, ?, ?)'
+    db.run(sql, [userId, title, 'placeholder', roomId, chatModel], function(err) {
       if (err) reject(err)
       else {
         room.id = this.lastID
@@ -296,9 +297,9 @@ export async function getChatRooms(userId: string): Promise<ChatRoom[]> {
   return rows.map(row => {
     const room = new ChatRoom(row.userId, row.title, row.roomId, row.chatModel)
     room.id = row.id
+    room.titleSource = row.titleSource || 'legacy'
     room.prompt = row.prompt || ''
     room.usingContext = row.usingContext
-    room.usingThinking = row.usingThinking ?? false
     room.usingDraw = row.usingDraw ?? false
     room.status = row.status
     room.chatModel = row.chatModel
@@ -566,8 +567,8 @@ export async function updateKeyAvailableModels(id: number, models: string[]): Pr
 // 按 key + apiBaseUrl 更新可用模型列表（用于未传 id 的情况）
 export async function updateKeyAvailableModelsByKey(key: string, apiBaseUrl: string | undefined, models: string[]): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const sql = 'UPDATE key_config SET availableModels = ? WHERE key = ? AND (apiBaseUrl = ? OR (? IS NULL AND apiBaseUrl IS NULL))'
-    db.run(sql, [JSON.stringify(models || []), key, apiBaseUrl || null, apiBaseUrl || null], (err) => {
+    const sql = 'UPDATE key_config SET availableModels = ? WHERE key = ? AND COALESCE(apiBaseUrl, \'\') = COALESCE(?, \'\')'
+    db.run(sql, [JSON.stringify(models || []), key, apiBaseUrl || null], (err) => {
       if (err) reject(err)
       else resolve()
     })
@@ -784,9 +785,9 @@ export async function getChatRoom(userId: string, roomId: number): Promise<ChatR
   
   const room = new ChatRoom(row.userId, row.title, row.roomId, row.chatModel)
   room.id = row.id
+  room.titleSource = row.titleSource || 'legacy'
   room.prompt = row.prompt
   room.usingContext = row.usingContext
-  room.usingThinking = row.usingThinking ?? false
   room.usingDraw = row.usingDraw ?? false
   room.status = row.status
   room.chatModel = row.chatModel
@@ -873,12 +874,22 @@ export async function getUsers(page: number, size: number): Promise<{ users: Use
 }
 
 // 重命名聊天室
-export async function renameChatRoom(userId: string, title: string, roomId: number) {
+export async function renameChatRoom(userId: string, title: string, roomId: number, titleSource = 'manual'): Promise<boolean> {
   return new Promise((resolve, reject) => {
-    const sql = 'UPDATE chat_room SET title = ? WHERE userId = ? AND roomId = ?'
-    db.run(sql, [title, userId, roomId], (err) => {
+    const sql = 'UPDATE chat_room SET title = ?, titleSource = ? WHERE userId = ? AND roomId = ?'
+    db.run(sql, [title, titleSource, userId, roomId], function(err) {
       if (err) reject(err)
-      else resolve(null)
+      else resolve(this.changes > 0)
+    })
+  })
+}
+
+export async function updateAutomaticRoomTitle(userId: string, title: string, roomId: number, titleSource: 'fallback' | 'generated'): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const sql = "UPDATE chat_room SET title = ?, titleSource = ? WHERE userId = ? AND roomId = ? AND titleSource = 'placeholder'"
+    db.run(sql, [title, titleSource, userId, roomId], function(err) {
+      if (err) reject(err)
+      else resolve(this.changes > 0)
     })
   })
 }
@@ -906,17 +917,6 @@ export async function updateRoomUsingContext(userId: string, roomId: number, usi
 }
 
 
-
-// 更新聊天室思考设置
-export async function updateRoomUsingThinking(userId: string, roomId: number, using: boolean): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const sql = 'UPDATE chat_room SET usingThinking = ? WHERE userId = ? AND roomId = ?'
-    db.run(sql, [using, userId, roomId], function(err) {
-      if (err) reject(err)
-      else resolve(this.changes > 0)
-    })
-  })
-}
 
 // 更新聊天室绘图设置
 export async function updateRoomUsingDraw(userId: string, roomId: number, using: boolean): Promise<boolean> {

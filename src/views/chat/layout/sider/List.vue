@@ -1,6 +1,6 @@
 <script setup lang='ts'>
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { NInput, NPopconfirm, NScrollbar, NSpin } from 'naive-ui'
+import { NInput, NPopconfirm, NScrollbar, NSpin, useMessage } from 'naive-ui'
 import { SvgIcon } from '@/components/common'
 import { useAppStore, useChatStore } from '@/store'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
@@ -12,6 +12,7 @@ const { isMobile } = useBasicLayout()
 const appStore = useAppStore()
 const chatStore = useChatStore()
 const authStore = useAuthStoreWithout()
+const ms = useMessage()
 
 const loadingRoom = ref(false)
 
@@ -51,9 +52,14 @@ async function handleSelect({ uuid }: Chat.History) {
     appStore.setSiderCollapsed(true)
 }
 
-function handleEdit({ uuid }: Chat.History, isEdit: boolean, event?: MouseEvent) {
+async function handleEdit({ uuid }: Chat.History, isEdit: boolean, event?: MouseEvent) {
   event?.stopPropagation()
-  chatStore.updateHistory(uuid, { isEdit })
+  try {
+    await chatStore.updateHistory(uuid, { isEdit })
+  }
+  catch (error: any) {
+    ms.error(error?.message || '保存标题失败')
+  }
 }
 
 function handleDelete(index: number, event?: MouseEvent | TouchEvent) {
@@ -65,10 +71,16 @@ function handleDelete(index: number, event?: MouseEvent | TouchEvent) {
 
 const handleDeleteDebounce = debounce(handleDelete, 600)
 
-function handleEnter({ uuid }: Chat.History, isEdit: boolean, event: KeyboardEvent) {
+async function handleEnter({ uuid }: Chat.History, isEdit: boolean, event: KeyboardEvent) {
   event?.stopPropagation()
-  if (event.key === 'Enter')
-    chatStore.updateHistory(uuid, { isEdit })
+  if (event.key !== 'Enter')
+    return
+  try {
+    await chatStore.updateHistory(uuid, { isEdit })
+  }
+  catch (error: any) {
+    ms.error(error?.message || '保存标题失败')
+  }
 }
 
 function isActive(uuid: number) {

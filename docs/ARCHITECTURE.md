@@ -58,7 +58,7 @@
 - `src/main.ts` 初始化资源、Pinia、i18n 和路由，并在挂载应用前调用 `useChatStore().initStore()` 恢复聊天缓存。
 - `src/router/index.ts` 使用 Hash 路由。聊天页面位于 `/chat/:uuid?`，并提供 `/404`、`/500` 异常页。
 - `src/router/permission.ts` 在路由进入前加载会话信息，处理 Token、用户状态和异常跳转。
-- `src/store/modules/chat/` 管理房间、消息、当前模型、上下文开关、思考开关和生成状态。
+- `src/store/modules/chat/` 管理房间、消息、当前模型、上下文开关、绘图状态和生成状态。
 
 聊天数据使用 `localforage` 写入 IndexedDB，避免较长对话或大体积图片内容超出 `localStorage` 容量。写入前会转为普通 JSON 对象，避免 Vue Proxy 导致结构化克隆失败。
 
@@ -69,6 +69,14 @@
 - `src/views/chat/index.vue` 负责消息提交、流式增量更新、图片附件、重新生成、中止请求和历史图片回填。
 - 页面使用 Naive UI，聊天布局由侧边栏、顶部区域、消息列表和输入区组成，并适配移动端。
 - 传统用户/助手头像和部分冗余操作入口已移除，界面采用 Indigo-Violet 视觉风格。
+
+### 3.3 默认模型与高级模式
+
+- 新建会话的模型优先级为：用户个人默认模型 → 网站默认模型 → 当前角色第一个可用模型 → 静态兜底模型。用户默认和网站默认都必须存在于当前用户的 `chatModels` 中，否则自动跳过。
+- 网站默认模型只是管理员设置的全站推荐值，不授予模型权限；用户个人默认只影响以后新建的会话；已创建房间继续保存自己的 `chatModel`。
+- 非高级模式隐藏聊天页的模型切换器，按上述优先级自动选择；高级模式允许用户为当前会话切换模型。高级模式只控制界面能力，不改变角色权限，也不会在关闭时强制改写已有会话模型。
+- 个人默认模型仍显示在用户通用设置中，作为低频偏好；聊天页的逐会话模型切换只在高级模式显示。
+- 绘图入口只在高级模式显示。关闭高级模式或在普通模式切换到遗留的绘图会话时，前端会自动关闭隐藏的 `usingDraw` 状态，避免它继续阻止上下文开关。
 
 ## 4. 后端架构
 
@@ -83,9 +91,15 @@
 ### 4.2 模型调用与上下文
 
 - `service/src/chatgpt/index.ts` 使用 OpenAI SDK，并支持自定义 `baseURL`、HTTPS 代理和 SOCKS 代理。
-- 后端根据用户角色、密钥状态和所选模型筛选可用密钥，再从未锁定的候选密钥中选择一个执行请求。
+- 普通聊天根据用户角色、密钥状态和所选模型筛选可用密钥，再从未锁定的候选密钥中选择一个执行请求。
 - 会话通过 `conversationId` 和 `parentMessageId` 形成消息链；启用上下文时，后端最多向前回溯 20 条关联消息组装请求。
 - 普通回复以流式增量返回；模型提供独立思考内容时，同时返回 `thinking`，最终写入消息的 `options`。
+- 聊天请求不主动发送 `extra_body`、`reasoning_effort` 或厂商专属思考参数。推理模式由 new-api 的模型 ID、别名或渠道配置决定，避免在通用聊天端维护厂商能力表。
+- 名称以 `gemini-` 开头且包含 `flash` 的模型会附加 New API 识别的 `googleSearch` 工具；它与用户启用的插件工具合并，并由 New API 转换为 Gemini 原生 Google Search。
+- 上游返回思考内容时，前端自动流式展示思考卡片，不再提供房间级思考显示开关。
+- 新会话以占位标题创建。首轮回答完成后，前端独立调用 `/room-title`，不阻塞正常聊天；站点配置了 `titleModel` 时，后端仍按当前用户角色和 `chatModels` 寻找可用 Key，避免标题任务绕过用户渠道权限。
+- 标题模型未配置、当前用户无可用 Key、模型调用失败或输出无效时，使用清理和截断后的首条用户消息生成本地标题。用户不选择标题模型，但可以随时手动重命名。
+- 会话标题通过 `titleSource` 区分 `placeholder`、`fallback`、`generated`、`manual` 和 `legacy`。自动标题只能更新 `placeholder` 会话，不会覆盖手动标题或旧数据。
 - 模型未返回 Token Usage 时，服务端会按模型映射进行估算，并统一持久化 `prompt_tokens`、`completion_tokens` 和 `total_tokens`。
 
 ### 4.3 存储与上传
@@ -103,7 +117,11 @@
 - `plugin.json.id` 是去掉连字符的 32 位小写 GUID，也是数据库与用户状态的稳定主键；插件名称和工具名称均不设置数据库唯一约束。
 - 管理员可以使用未发布插件，也可以将插件发布给普通用户。每个用户独立启用或停用插件；启用时若任一工具名与已启用插件重复，服务端拒绝操作并提示冲突插件。
 - 插件设置由 `plugin.json.settings` 描述，只能由管理员统一修改；普通用户的插件页只提供启用和停用操作。密钥类设置不会通过查询接口回传明文。
+- 所有 `type: "model"` 的插件设置都是管理员全局模型配置，而不是当前用户或当前会话的模型偏好。普通用户不能修改或在工具参数中覆盖该模型；使用这类设置的宿主服务应从全局未禁用 Key 池选择支持该模型的 Key，不继承调用用户的聊天 Key 角色限制。
 - 手动绘图与自动 Function Call 共用同一个 `generate_image` 工具。勾选绘图按钮时请求直接执行该工具并返回，不再进入聊天模型调用，因此不会重复生图，也不依赖当前聊天模型。
+- 图片生成是当前内置的 `model` 类型插件设置实例：用户只能提交提示词，模型由管理员全局指定。插件的发布状态和用户启用状态负责控制能力入口。
+- 插件模型 Key 优先通过 `availableModels` 判断上游是否支持管理员指定模型；该列表为空时回退检查 `chatModels`。找不到候选 Key 时明确报错，不自动改用当前聊天模型。
+- 同时配置 `MG_API_KEY` 和 `MG_API_BASE_URL` 时，图片生成保留旧 MG 服务优先路径，不进入普通 Key 池选择。
 - `plugin_config` 保存发布状态和全局设置，`user_plugin_config` 保存用户启用状态，`plugin_storage` 为插件提供按全局或用户隔离的 JSON 存储。
 
 ## 5. 核心运行链路
@@ -132,7 +150,7 @@
 3. 用户发送消息时，前端通过 `/chat-process` 的 `images: string[]` 提交文本和图片。
 4. 后端将图片转换为模型可读取的 URL 或 Data URL，与文本一起提交，并将附件记录到聊天历史。
 
-> **关键定制：**`src/views/chat/index.vue` 中的图片编辑按钮通过 `showEditButton = false` 默认关闭。当前前端所有带图片的请求均按图文对话处理，统一走 `/chat-process`。后续维护时不要擅自重新开启该按钮。
+> **关键定制：**项目不提供独立图片编辑模式和 `/image-edit` 接口。所有带图片的请求均按图文对话处理，统一走 `/chat-process`；图片生成只通过插件能力提供。
 
 ### 5.4 连续图文对话的自动垫图
 
@@ -149,11 +167,11 @@
 | 分类 | 主要接口 | 职责 |
 | --- | --- | --- |
 | 聊天 | `/chat-process`、`/chat-abort`、`/chat-history`、`/chat-response-history`、`/chat-delete`、`/chat-clear` | 生成、中止、查询和管理消息 |
-| 房间 | `/room-create`、`/room-rename`、`/room-prompt`、`/room-context`、`/room-thinking`、`/room-chatmodel`、`/room-delete`、`/chatrooms` | 管理房间及房间级模型和功能开关 |
+| 房间 | `/room-create`、`/room-rename`、`/room-title`、`/room-prompt`、`/room-context`、`/room-chatmodel`、`/room-delete`、`/chatrooms` | 管理房间、手动/自动标题、房间级模型和上下文开关 |
 | 图片 | `/upload-image`、`/upload-images`、`/uploads/*` | 上传图片并提供静态访问 |
 | 用户 | `/session`、`/user-login`、`/user-register`、`/user-info`、`/users`、`/user-status`、`/user-edit`、`/verify`、`/verifyadmin` | 会话、认证与用户管理 |
 | 配置与运维 | `/config`、`/setting-*`、`/mail-test`、`/audit-test`、`/statistics/by-day` | 站点配置、密钥、邮件、审核与统计 |
-| 插件 | `/plugin/list`、`/plugin/refresh`、`/plugin/enabled`、`/plugin/publish`、`/plugin/settings` | 查询可见插件、管理员刷新、用户启停、管理员发布与全局设置 |
+| 插件 | `/plugin/list`、`/plugin/models`、`/plugin/refresh`、`/plugin/enabled`、`/plugin/publish`、`/plugin/settings` | 查询可见插件和模型、管理员刷新、用户启停、管理员发布与全局设置 |
 
 部分配置、用户和统计接口受 `rootAuth` 保护。`/session` 使用 `POST`，其模型字段约定如下：
 
@@ -171,6 +189,18 @@
 - 刷新动画至少展示 `400ms`，避免快速请求导致闪烁
 
 不同服务地址或密钥必须保持独立缓存，修改命名空间规则时需要兼顾旧缓存迁移。
+
+### 7.1 模型列表与调用权限
+
+- `availableModels` 表示刷新 Key 后发现的上游能力，主要用于候选展示和判断接口是否真实支持模型。
+- `chatModels` 表示管理员允许普通聊天使用的模型，是用户聊天和标题总结任务的授权依据。
+- 管理员全局填写一个模型名不等于自动授予普通聊天权限；调用时按下表选择 Key：
+
+| 调用类型 | 模型来源 | 是否检查用户角色 | 模型检查 | 回退行为 |
+| --- | --- | --- | --- | --- |
+| 普通聊天 | 房间模型 | 是 | `chatModels` | 无候选 Key 时返回错误 |
+| 会话标题 | 网站标题模型 | 是 | `chatModels` | 使用本地标题 |
+| 插件模型调用 | 插件的 `model` 类型全局设置 | 否 | 优先 `availableModels`，为空时使用 `chatModels` | 无候选 Key 时返回错误 |
 
 ## 8. 配置
 
@@ -190,7 +220,10 @@ API Key 和允许使用的模型主要在管理后台的密钥管理页面配置
 - `TIMEOUT_MS`、`MAX_REQUEST_PER_HOUR`：模型请求超时与限流
 - `SOCKS_PROXY_*`、`HTTPS_PROXY`：网络代理
 - `SITE_TITLE`、`REGISTER_ENABLED` 等：站点和注册策略
-- `SMTP_*`、`AUDIT_*`：邮件和文本审核
+- `TITLE_MODEL`：会话标题总结模型的初始值；运行后优先使用网站配置中的普通文本输入值
+- `MG_API_KEY`、`MG_API_BASE_URL`：旧 MG 图片生成服务；两者同时存在时优先于插件的全局 Key 池
+- `SMTP_HOST`、`SMTP_PORT`、`SMTP_TLS`、`SMTP_USERNAME`、`SMTP_PASSWORD`：邮件服务；旧版拼写 `SMTP_TSL` 仅用于兼容读取
+- `AUDIT_*`：文本审核
 - `UPLOAD_MAX_SIZE_MB`、`UPLOAD_CLEAN_INTERVAL`、`UPLOAD_SAVE_HOURS`：上传限制与清理策略
 - `PLUGIN_DIR`：外置插件根目录，容器内默认使用 `/app/plugins`
 

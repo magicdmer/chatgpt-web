@@ -17,7 +17,6 @@ export function fetchChatAPIProcess<T = any>(
     prompt: string
     images?: string[]
     options?: { conversationId?: string; parentMessageId?: string }
-    extra_body?: Record<string, any>
     signal?: GenericAbortSignal
     draw?: boolean
     autoContinue?: boolean
@@ -32,7 +31,6 @@ export function fetchChatAPIProcess<T = any>(
     prompt: params.prompt,
     images: params.images,
     options: params.options,
-    extra_body: params.extra_body,
     draw: params.draw,
     autoContinue: params.autoContinue,
   }
@@ -168,6 +166,13 @@ export function fetchRenameChatRoom<T = any>(title: string, roomId: number) {
   })
 }
 
+export function fetchGenerateChatRoomTitle<T = { title: string; titleSource: Chat.History['titleSource'] }>(roomId: number, prompt: string, response: string) {
+  return post<T>({
+    url: '/room-title',
+    data: { roomId, prompt: prompt.slice(0, 4000), response: response.slice(0, 4000) },
+  })
+}
+
 export function fetchUpdateChatRoomPrompt<T = any>(prompt: string, roomId: number) {
   return post<T>({
     url: '/room-prompt',
@@ -182,13 +187,6 @@ export function fetchUpdateChatRoomUsingContext<T = any>(using: boolean, roomId:
   })
 }
 
-export function fetchUpdateChatRoomUsingThinking<T = any>(using: boolean, roomId: number) {
-  return post<T>({
-    url: '/room-thinking',
-    data: { using, roomId },
-  })
-}
-
 export function fetchUpdateChatRoomUsingDraw<T = any>(using: boolean, roomId: number) {
   return post<T>({
     url: '/room-draw',
@@ -197,8 +195,8 @@ export function fetchUpdateChatRoomUsingDraw<T = any>(using: boolean, roomId: nu
 }
 
 // 管理员：获取指定密钥的 OpenAI 模型列表（优先使用前端传入的 key/apiBaseUrl）
-export function fetchOpenAIModels<T = any>(payload: { key: string; apiBaseUrl?: string } | { id: string }) {
-  return get<T>({
+export function fetchOpenAIModels<T = any>(payload: { key: string; apiBaseUrl?: string; id?: string } | { id: string }) {
+  return post<T>({
     url: '/setting-key-models',
     data: payload,
   })
@@ -218,13 +216,6 @@ export function fetchUploadImages<T = any>(form: FormData) {
     url: '/upload-images',
     data: () => form,
     headers: { 'Content-Type': 'multipart/form-data' },
-  })
-}
-
-export function fetchImageEdit<T = any>(payload: { prompt: string; images: string[]; model?: string; roomId?: number; messageUuid?: number }) {
-  return post<T>({
-    url: '/image-edit',
-    data: payload,
   })
 }
 

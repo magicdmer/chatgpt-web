@@ -131,6 +131,16 @@ onMounted(() => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
+          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.titleModel') }}</span>
+          <div class="flex-1">
+            <NInput
+              :value="config && config.titleModel"
+              :placeholder="$t('setting.titleModelTip')"
+              @input="(val) => { if (config) config.titleModel = val }"
+            />
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
           <span class="flex-shrink-0 w-[100px]" />
           <NButton :loading="saving" type="primary" @click="updateSiteInfo(config)">
             {{ $t('common.save') }}

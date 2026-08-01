@@ -8,8 +8,6 @@ export class ConfigState {
   balance?: number
   siteConfig?: SiteConfig
   mailConfig?: MailConfig
-
-
 }
 
 export class UserConfig {
@@ -25,12 +23,13 @@ export class SiteConfig {
   registerMails?: string
   siteDomain?: string
   defaultChatModel?: string
+  titleModel?: string
 }
 
 export class MailConfig {
   smtpHost?: string
   smtpPort?: number
-  smtpTsl?: boolean
+  smtpTls?: boolean
   smtpUserName?: string
   smtpPassword?: string
 }
@@ -61,14 +60,16 @@ export class KeyConfig {
   key: string
   apiBaseUrl: string
   chatModels: string[]
+  availableModels: string[]
   userRoles: UserRole[]
   status: Status
   remark: string
-  constructor(key: string, apiBaseUrl: string, chatModels: string[], 
+  constructor(key: string, apiBaseUrl: string, chatModels: string[],
     userRoles: UserRole[], remark: string) {
     this.key = key
     this.apiBaseUrl = apiBaseUrl
     this.chatModels = chatModels
+    this.availableModels = []
     this.userRoles = userRoles
     this.status = Status.Normal
     this.remark = remark

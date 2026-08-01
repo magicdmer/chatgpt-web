@@ -24,13 +24,13 @@ declare namespace Chat {
 
   interface History {
     title: string
+    titleSource?: 'placeholder' | 'fallback' | 'generated' | 'manual' | 'legacy'
     isEdit: boolean
     uuid: number
     loading?: boolean
     all?: boolean
     prompt?: string
     usingContext: boolean
-    usingThinking?: boolean
     usingDraw?: boolean
     chatModel: string
   }

@@ -14,10 +14,9 @@ import { HoverButton, SvgIcon } from '@/components/common'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useIconRender } from '@/hooks/useIconRender'
 import { useAppStore, useAuthStore, useChatStore, usePromptStore } from '@/store'
-import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchUploadImages, fetchImageEdit } from '@/api'
+import { fetchChatAPIProcess, fetchChatResponseoHistory, fetchChatStopResponding, fetchGenerateChatRoomTitle, fetchUploadImages } from '@/api'
 import { createController, abortController, hasController } from '@/utils/abortController'
 import { getDefaultChatModel } from '@/utils/chatModel'
-import { buildExtraBody } from '@/utils/extraBody'
 import { t } from '@/locales'
 import { debounce } from '@/utils/functions/debounce'
 const Prompt = defineAsyncComponent(() => import('@/components/common/Setting/Prompt.vue'))
@@ -41,7 +40,6 @@ const { uuid } = route.params as { uuid: string }
 const currentChatHistory = computed(() => chatStore.getChatHistoryByCurrentActive)
 const usingContext = computed(() => !!(currentChatHistory?.value?.usingContext ?? true))
 const currentChatModel = computed(() => currentChatHistory?.value?.chatModel ?? getDefaultChatModel())
-const usingThinking = computed(() => currentChatHistory?.value?.usingThinking ?? false)
 const usingDraw = computed(() => currentChatHistory?.value?.usingDraw ?? false)
 const dataSources = computed(() => chatStore.getChatByUuid(+uuid))
 const conversationList = computed(() => dataSources.value.filter(item => (!item.inversion && !!item.conversationOptions)))
@@ -54,10 +52,6 @@ const showPrompt = ref(false)
 // 图片附件：上传后得到的可访问URL列表
 const attachedImageUrls = ref<string[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
-// 编辑模式（不使用蒙版，简化操作）
-const isEditMode = ref<boolean>(false)
-// 控制是否显示编辑按钮
-const showEditButton = false
 
 let loadingms: MessageReactive
 let prevScrollTop: number
@@ -139,17 +133,13 @@ async function handlePaste(e: ClipboardEvent) {
   }
 }
 
-// 已移除蒙版上传逻辑
-
-async function handleToggleUsingThinking() {
-  if (!currentChatHistory.value)
+function requestAutomaticRoomTitle(userMessage: string, assistantMessage: string) {
+  if (!assistantMessage)
     return
-  const next = !usingThinking.value
-  chatStore.setUsingThinking(next, +uuid)
-  if (next)
-    ms.success('已开启思考模式')
-  else
-    ms.warning('已关闭思考模式')
+
+  fetchGenerateChatRoomTitle(+uuid, userMessage, assistantMessage)
+    .then(({ data }) => chatStore.applyAutomaticTitle(+uuid, data.title, data.titleSource))
+    .catch(() => {})
 }
 
 async function onConversation() {
@@ -216,13 +206,13 @@ async function onConversation() {
     }
     return []
   }
-  let clearContextForEdit = false
+  let clearTextContextForAssistantImage = false
   // 仅在 usingContext=true 时才进行历史图片回溯；usingContext=false 完全输入驱动，不做图片回填
   if (usingContext.value && imagesToSend.length === 0) {
     const assistantImages = findLastAssistantImages()
     if (assistantImages.length > 0) {
       imagesToSend.push(...assistantImages)
-      clearContextForEdit = true
+      clearTextContextForAssistantImage = true
     }
     else {
       const nearestUserImages = findNearestUserImages()
@@ -232,7 +222,7 @@ async function onConversation() {
   }
 
   if (lastContext && usingContext.value)
-    options = clearContextForEdit ? {} : { ...lastContext }
+    options = clearTextContextForAssistantImage ? {} : { ...lastContext }
 
   addChat(
     +uuid,
@@ -256,7 +246,6 @@ async function onConversation() {
     const fetchChatAPIOnce = async () => {
       let streamBuffer = ''
       let parsedLength = 0
-      const extraBody = buildExtraBody(currentChatModel.value, usingThinking.value)
       const stripImageFromMarkdown = (s: string) => String(s || '')
         .replace(/\!\[[^\]]*\]\([^)]+\)/g, '')
         .replace(/<img[^>]*>/gi, '')
@@ -293,43 +282,12 @@ async function onConversation() {
 
         scrollToBottomIfAtBottom()
       }
-      // 如有图片附件：编辑模式仍走图片编辑；否则统一走 chat-process 并携带图片
-      if (imagesToSend.length > 0 && isEditMode.value) {
-        const editRes = await fetchImageEdit<{ markdown?: string; url?: string; urls?: string[] }>({
-          prompt: message,
-          images: imagesToSend,
-          roomId: +uuid,
-          messageUuid: chatUuid,
-          model: currentChatModel.value
-        })
-        const markdown = (editRes as any)?.data?.markdown
-        const urls = (editRes as any)?.data?.urls || []
-        const url = (editRes as any)?.data?.url
-        const text = markdown || (urls.length > 0 ? urls.map((u: string) => `![edited](${u})`).join('\n') : (url ? `![edited](${url})` : ''))
-        updateChat(
-          +uuid,
-          dataSources.value.length - 1,
-          {
-            dateTime: Date.now(),
-            text,
-            inversion: false,
-            error: false,
-            loading: false,
-            thinking: '',
-            thinkingExpanded: false,
-            conversationOptions: null,
-            requestOptions: { prompt: message, options: { ...options } },
-          },
-        )
-        return
-      }
       await fetchChatAPIProcess<Chat.ConversationResponse>({
         roomId: +uuid,
         uuid: chatUuid,
         prompt: imagesToSend.length > 0 ? stripImageFromMarkdown(message) : message,
         images: imagesToSend.length > 0 ? imagesToSend : undefined,
         options,
-        extra_body: extraBody,
         draw: appStore.advancedMode ? usingDraw.value : false,
         autoContinue: openLongReply,
         signal: ctrl.signal,
@@ -368,6 +326,8 @@ async function onConversation() {
     }
 
     await fetchChatAPIOnce()
+    const assistantMessage = getChatByUuidAndIndex(+uuid, dataSources.value.length - 1)?.text || ''
+    requestAutomaticRoomTitle(message, assistantMessage)
   }
   catch (error: any) {
     const errorMessage = error?.message ?? t('common.wrong')
@@ -461,7 +421,6 @@ async function onRegenerate(index: number) {
     const fetchChatAPIOnce = async () => {
       let streamBuffer = ''
       let parsedLength = 0
-      const extraBody = buildExtraBody(currentChatModel.value, usingThinking.value)
       const originalImages: string[] = (dataSources.value[index]?.requestOptions as any)?.images || []
       const stripImageFromMarkdown = (s: string) => String(s || '')
         .replace(/\!\[[^\]]*\]\([^)]+\)/g, '')
@@ -506,7 +465,6 @@ async function onRegenerate(index: number) {
         prompt: originalImages.length > 0 ? stripImageFromMarkdown(message) : message,
         images: originalImages.length > 0 ? originalImages : undefined,
         options,
-        extra_body: extraBody,
         draw: appStore.advancedMode ? usingDraw.value : false,
         autoContinue: openLongReply,
         signal: ctrl.signal,
@@ -544,6 +502,8 @@ async function onRegenerate(index: number) {
       updateChatSome(+uuid, index, { loading: false, thinkingExpanded: false, toolStatus: undefined })
     }
     await fetchChatAPIOnce()
+    const assistantMessage = getChatByUuidAndIndex(+uuid, index)?.text || ''
+    requestAutomaticRoomTitle(message, assistantMessage)
   }
   catch (error: any) {
     if (error.message === 'canceled') {
@@ -868,6 +828,25 @@ async function handleSyncChatModel(chatModel: string) {
   chatStore.setChatModel(currentChatHistory.value.chatModel, +uuid)
 }
 
+const autoDisablingDrawRooms = new Set<number>()
+
+async function disableHiddenDrawMode() {
+  const history = currentChatHistory.value
+  if (appStore.advancedMode || !history?.usingDraw || autoDisablingDrawRooms.has(history.uuid))
+    return
+
+  autoDisablingDrawRooms.add(history.uuid)
+  try {
+    await chatStore.setUsingDraw(false, history.uuid)
+  }
+  catch (error: any) {
+    ms.error(error?.message || '自动关闭绘图模式失败')
+  }
+  finally {
+    autoDisablingDrawRooms.delete(history.uuid)
+  }
+}
+
 onMounted(() => {
   firstLoading.value = true
   handleSyncChat()
@@ -884,6 +863,19 @@ watch(
       if (next)
         handleSyncChatModel(next)
     }
+  },
+  { immediate: true },
+)
+
+// 普通模式不展示绘图入口，因此关闭高级模式或切换会话时主动清理隐藏的绘图状态。
+watch(
+  [
+    () => appStore.advancedMode,
+    () => currentChatHistory.value?.uuid,
+    () => currentChatHistory.value?.usingDraw,
+  ],
+  async () => {
+    await disableHiddenDrawMode()
   },
   { immediate: true },
 )
@@ -965,11 +957,6 @@ onUnmounted(() => {
                   <SvgIcon icon="ri:chat-history-line" />
                 </span>
               </HoverButton>
-              <HoverButton v-if="!isMobile" @click="handleToggleUsingThinking">
-                <span class="text-lg" :class="{ 'toolbar-icon-active': usingThinking, 'toolbar-icon': !usingThinking }">
-                  <SvgIcon icon="ri:lightbulb-line" />
-                </span>
-              </HoverButton>
               <HoverButton v-if="!isMobile && appStore.advancedMode" @click="handleToggleUsingDraw">
                 <span class="text-lg" :class="{ 'toolbar-icon-active': usingDraw, 'toolbar-icon': !usingDraw }">
                   <SvgIcon icon="ri:image-line" />
@@ -978,11 +965,6 @@ onUnmounted(() => {
               <HoverButton v-if="!isMobile" @click="triggerAttach">
                 <span class="toolbar-icon">
                   <SvgIcon icon="ri:attachment-2" />
-                </span>
-              </HoverButton>
-              <HoverButton v-if="!isMobile && showEditButton" @click="isEditMode = !isEditMode">
-                <span class="text-lg" :class="{ 'toolbar-icon-active': isEditMode, 'toolbar-icon': !isEditMode }">
-                  <SvgIcon icon="ri:scissors-cut-line" />
                 </span>
               </HoverButton>
               <NDropdown

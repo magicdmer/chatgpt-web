@@ -78,12 +78,12 @@ onMounted(() => {
           </div>
         </div>
         <div class="flex items-center space-x-4">
-          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.smtpTsl') }}</span>
+          <span class="flex-shrink-0 w-[100px]">{{ $t('setting.smtpTls') }}</span>
           <div class="flex-1">
             <NSwitch
               :round="false"
-              :value="config && config.smtpTsl"
-              @update:value="(val) => { if (config) config.smtpTsl = val }"
+              :value="config && config.smtpTls"
+              @update:value="(val) => { if (config) config.smtpTls = val }"
             />
           </div>
         </div>

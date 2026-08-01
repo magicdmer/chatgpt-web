@@ -29,7 +29,6 @@ export interface RequestOptions {
   systemMessage?: string
   temperature?: number
   top_p?: number
-  extra_body?: Record<string, any>
   user: UserInfo
   messageId: string
   chatUuid: number

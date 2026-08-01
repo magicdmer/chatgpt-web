@@ -63,7 +63,7 @@ async function sendMail(toMail: string, subject: string, html: string, config: M
   const transporter = nodemailer.createTransport({
     host: config.smtpHost,
     port: config.smtpPort,
-    secure: config.smtpTsl,
+    secure: config.smtpTls,
     auth: {
       user: config.smtpUserName,
       pass: config.smtpPassword,

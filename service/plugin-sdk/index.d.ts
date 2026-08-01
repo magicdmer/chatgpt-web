@@ -26,7 +26,6 @@ export interface PluginContext {
   services: {
     images: {
       generate(input: { prompt: string, model: string }): Promise<string>
-      edit(input: { imageUrl: string, prompt: string, model: string }): Promise<string>
     }
   }
 }

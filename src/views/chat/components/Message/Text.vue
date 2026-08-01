@@ -38,17 +38,6 @@ const mdi = new MarkdownIt({
 mdi.use(mila, { attrs: { target: '_blank', rel: 'noopener' } })
 mdi.use(mdKatex, { blockClass: 'katexmath-block rounded-md p-[10px]', errorColor: ' #cc0000' })
 
-const wrapClass = computed(() => {
-  return [
-    'text-wrap',
-    'min-w-[20px]',
-    isMobile.value ? 'p-2' : 'px-3 py-2',
-    props.inversion ? 'message-bubble-user' : 'message-bubble-ai',
-    { 'text-red-500': props.error },
-    { 'no-bg': props.loading && !text.value && !props.inversion },
-  ]
-})
-
 const text = computed(() => {
   let value = props.text ?? ''
   
@@ -65,6 +54,17 @@ const text = computed(() => {
   }
   
   return value
+})
+
+const wrapClass = computed(() => {
+  return [
+    'text-wrap',
+    'min-w-[20px]',
+    isMobile.value ? 'p-2' : 'px-3 py-2',
+    props.inversion ? 'message-bubble-user' : 'message-bubble-ai',
+    { 'text-red-500': props.error },
+    { 'no-bg': props.loading && !text.value && !props.inversion },
+  ]
 })
 
 function highlightBlock(str: string, lang?: string) {
@@ -197,4 +197,3 @@ onUnmounted(() => {
   background: transparent !important;
 }
 </style>
-

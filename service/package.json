@@ -17,7 +17,7 @@
   "scripts": {
     "start": "tsx ./src/index.ts",
     "dev": "tsx watch ./src/index.ts",
-    "prod": "tsx ./build/index.js",
+    "prod": "node --import tsx ./build/index.js",
     "build": "pnpm clean && tsup",
     "clean": "rimraf build",
     "lint": "eslint .",

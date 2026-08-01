@@ -2,16 +2,15 @@ import axios from 'axios'
 import type { UserInfo } from '../storage/model'
 import { Status } from '../storage/model'
 import { getCacheApiKeys, getCacheConfig } from '../storage/config'
-import { hasAnyRole } from '../utils/is'
 
 function normalizeApiBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, '').replace(/\/v1$/i, '')
 }
 
-async function selectImageKey(user: UserInfo, model: string) {
+// 插件的 model 类型设置由管理员全局下发，不继承调用用户的聊天 Key 角色限制。
+async function selectPluginModelKey(model: string) {
   const keys = (await getCacheApiKeys())
     .filter(key => key.status !== Status.Disabled)
-    .filter(key => hasAnyRole(key.userRoles, user.roles || []))
     .filter((key) => {
       const availableModels = key.availableModels || []
       return availableModels.length > 0
@@ -25,7 +24,7 @@ async function selectImageKey(user: UserInfo, model: string) {
   return keys[0]
 }
 
-export function createPluginServices(user: UserInfo, signal: AbortSignal) {
+export function createPluginServices(_user: UserInfo, signal: AbortSignal) {
   return {
     images: {
       async generate(input: { prompt: string; model: string }): Promise<string> {
@@ -56,7 +55,7 @@ export function createPluginServices(user: UserInfo, signal: AbortSignal) {
           return `![我的图片](${response.data.image})`
         }
 
-        const key = await selectImageKey(user, model)
+        const key = await selectPluginModelKey(model)
         const config = await getCacheConfig()
         const configuredBaseUrl = key.apiBaseUrl || config.apiBaseUrl || ''
         if (!configuredBaseUrl)
@@ -79,10 +78,6 @@ export function createPluginServices(user: UserInfo, signal: AbortSignal) {
         if (!imageUrl)
           throw new Error('No image URL in response')
         return `![我的图片](${imageUrl})`
-      },
-
-      async edit(): Promise<string> {
-        throw new Error('当前宿主尚未向插件开放图片编辑服务')
       },
     },
   }

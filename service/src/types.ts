@@ -7,7 +7,6 @@ export interface RequestProps {
   prompt: string
   images?: string[]
   options?: ChatContext
-  extra_body?: Record<string, any>
   systemMessage: string
   temperature?: number
   top_p?: number

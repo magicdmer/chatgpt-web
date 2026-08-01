@@ -7,6 +7,7 @@ import { t } from '@/locales'
 import { ss } from '@/utils/storage'
 import { useBasicLayout } from '@/hooks/useBasicLayout'
 import { useAuthStore } from '@/store'
+import { copyToClip } from '@/utils/copy'
 
 const ms = useMessage()
 const dialog = useDialog()
@@ -48,10 +49,43 @@ const filterSelectOption = (pattern: string, option: any) => {
   const text = String(option.label ?? option.value)
   return text.toLowerCase().includes(pattern.toLowerCase())
 }
+
+async function copyModelName(model: string) {
+  try {
+    await copyToClip(model)
+    ms.success(`已复制模型名：${model}`)
+  }
+  catch (error) {
+    ms.error('复制失败')
+  }
+}
+
+const renderModelTag = ({ option, handleClose }: { option: any; handleClose: () => void }) => {
+  const model = String(option.value ?? option.label ?? '')
+  return h(
+    NTag,
+    {
+      closable: true,
+      bordered: false,
+      type: 'info',
+      title: '点击复制模型名',
+      style: { cursor: 'copy' },
+      onClick: (event: MouseEvent) => {
+        event.stopPropagation()
+        copyModelName(model)
+      },
+      onClose: (event: MouseEvent) => {
+        event.stopPropagation()
+        handleClose()
+      },
+    },
+    { default: () => model },
+  )
+}
 // 刷新当前 Key 的模型列表
 const refreshingModels = ref(false)
 const MIN_SPIN_MS = 400
-  const handleRefreshModels = async () => {
+const handleRefreshModels = async () => {
   if (!keyConfig.value?.key) {
     ms.warning('请先输入 API Key')
     return
@@ -62,7 +96,11 @@ const MIN_SPIN_MS = 400
     t0 = Date.now()
     // 刷新开始时清空旧的列表，避免旧数据闪烁
     modelOptions.value = []
-    const res: any = await (fetchOpenAIModels as any)({ key: keyConfig.value.key, apiBaseUrl: keyConfig.value.apiBaseUrl })
+    const res: any = await fetchOpenAIModels({
+      id: keyConfig.value.id,
+      key: keyConfig.value.key,
+      apiBaseUrl: keyConfig.value.apiBaseUrl,
+    })
     const models: string[] = (res?.data as any) || []
     if (!models.length) {
       ms.warning('未拉取到模型或拉取失败')
@@ -71,6 +109,7 @@ const MIN_SPIN_MS = 400
     // 覆盖下拉选项为新列表，保持选中值在新列表中
     const options = models.map(m => ({ label: m, key: m, value: m }))
     modelOptions.value = options
+    keyConfig.value.availableModels = models
     // 命名空间缓存：按 apiKey + baseUrl 存储独立的模型列表
     const ns = buildModelsNamespace(keyConfig.value.key, keyConfig.value.apiBaseUrl)
     if (ns)
@@ -126,9 +165,16 @@ const columns = [
           {
             style: {
               marginRight: '6px',
+              marginBottom: '4px',
+              cursor: 'copy',
             },
             type: 'info',
             bordered: false,
+            title: '点击复制模型名',
+            onClick: (event: MouseEvent) => {
+              event.stopPropagation()
+              copyModelName(chatModel)
+            },
           },
           {
             default: () => chatModel,
@@ -372,6 +418,7 @@ onMounted(async () => {
                 :filter="filterSelectOption"
                 :value="keyConfig.chatModels"
                 :options="modelOptions"
+                :render-tag="renderModelTag"
                 @update-value="value => keyConfig.chatModels = value"
               />
               <NButton
@@ -382,7 +429,7 @@ onMounted(async () => {
               >
                 <template v-if="refreshingModels">
                   <span class="inline-flex items-center justify-center w-full">
-                    <span class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                    <span class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   </span>
                 </template>
                 <template v-else>
